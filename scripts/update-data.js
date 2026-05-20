@@ -63,7 +63,8 @@ function processFeeds(feeds, station) {
     const day = {};
     for (const p of ['M', 'T', 'N', 'all']) {
       day[p + '_avg'] = b[p].length ? b[p].reduce((a, c) => a + c, 0) / b[p].length : null;
-      day[p + '_n'] = b[p].length;
+      day[p + '_max'] = b[p].length ? Math.max(...b[p]) : null;
+      day[p + '_n']   = b[p].length;
     }
     byDay[ymd] = day;
   }

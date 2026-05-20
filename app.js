@@ -534,14 +534,15 @@ function computeSeasonStatsForStation(stationKey) {
         if (!months.includes(d.getMonth())) return;
         if (day.all_avg == null) return;
         temps.push(day.all_avg);
-        if (day.all_avg > 28) over28++;
+        // Días con max > 28° (preferir all_max si está disponible, fallback a T_avg como proxy de "tarde caliente")
+        const hottest = day.all_max != null ? day.all_max : (day.T_avg != null ? day.T_avg + 3 : day.all_avg);
+        if (hottest > 28) over28++;
         const islaDay = isla && isla[ymd];
         if (islaDay && islaDay.all_avg != null) deltas.push(day.all_avg - islaDay.all_avg);
       });
     }
 
     if (stationKey === '__avg') {
-      // Avg of 4 urbans → for each day, compute avg of urban stations
       const urbans = ['providencia', 'stgocentro', 'renca', 'cerrillos'];
       const allDays = new Set();
       urbans.forEach(u => YEAR_DATA[u] && Object.keys(YEAR_DATA[u]).forEach(d => allDays.add(d)));
@@ -552,7 +553,10 @@ function computeSeasonStatsForStation(stationKey) {
         if (dayTemps.length === 0) continue;
         const avg = dayTemps.reduce((a,c)=>a+c,0) / dayTemps.length;
         temps.push(avg);
-        if (avg > 28) over28++;
+        // Para __avg, usar el max diario entre las urbanas si existe
+        const dayMaxes = urbans.map(u => YEAR_DATA[u] && YEAR_DATA[u][ymd] && (YEAR_DATA[u][ymd].all_max != null ? YEAR_DATA[u][ymd].all_max : YEAR_DATA[u][ymd].T_avg)).filter(t => t != null);
+        const hottest = dayMaxes.length ? Math.max(...dayMaxes) : avg;
+        if (hottest > 28) over28++;
         const islaDay = isla && isla[ymd];
         if (islaDay && islaDay.all_avg != null) deltas.push(avg - islaDay.all_avg);
       }
