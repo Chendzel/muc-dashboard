@@ -456,6 +456,8 @@ function setActiveStation(key) {
     const el = document.getElementById(id);
     if (el) el.textContent = [d.deltaNow, d.deltaAvg, d.deltaMax][i];
   });
+  const maxLbl = document.getElementById('delta-max-label');
+  if (maxLbl) maxLbl.textContent = 'Máx ' + (d.deltaMaxHour || '—');
 
   // Update resumen label
   const rs = document.getElementById('resumen-station');
@@ -463,26 +465,331 @@ function setActiveStation(key) {
 
   // Update season-row stats (Verano + Otoño rows have data; others "próximo")
   const rows = document.querySelectorAll('.stats-card .season-row');
-  if (rows[0] && d.seasons.verano) {
-    const stats = rows[0].querySelectorAll('.season-stat .v');
-    if (stats[0]) stats[0].textContent = d.seasons.verano[0];
-    if (stats[1]) stats[1].innerHTML = d.seasons.verano[1] + '<span class="u">d</span>';
-    if (stats[2]) stats[2].textContent = d.seasons.verano[2];
-  }
-  if (rows[1] && d.seasons.otono) {
-    const stats = rows[1].querySelectorAll('.season-stat .v');
-    if (stats[0]) stats[0].textContent = d.seasons.otono[0];
-    if (stats[1]) stats[1].innerHTML = d.seasons.otono[1] + '<span class="u">d</span>';
-    if (stats[2]) stats[2].textContent = d.seasons.otono[2];
-  }
+  const seasonKeys = ['verano', 'otono', 'invierno', 'primavera'];
+  rows.forEach((row, i) => {
+    const sk = seasonKeys[i];
+    const data = d.seasons && d.seasons[sk];
+    const stats = row.querySelectorAll('.season-stat .v');
+    const upcomingMsg = row.querySelector('.season-stats.upcoming');
+    if (data && Array.isArray(data) && stats.length >= 3) {
+      // Replace upcoming-message if it exists with actual stats
+      if (upcomingMsg) upcomingMsg.outerHTML = '<div class="season-stats"><div class="season-stat"><span class="v">' + data[0] + '</span><span class="l">PROM</span></div><div class="season-stat"><span class="v">' + data[1] + '<span class="u">d</span></span><span class="l">&gt;28°</span></div><div class="season-stat"><span class="v">' + data[2] + '</span><span class="l">ΔU-R</span></div></div>';
+      else {
+        stats[0].textContent = data[0];
+        stats[1].innerHTML = data[1] + '<span class="u">d</span>';
+        stats[2].textContent = data[2];
+      }
+    }
+  });
 
   // Highlight active station card
   document.querySelectorAll('.station-card').forEach(c => {
     c.classList.toggle('active-station', c.dataset.stationKey === key);
   });
 
-  // Regenerate heatmaps with this station's seed
+  // Regenerate heatmaps + Δ chart with this station's seed
   regenerateAllHeatmaps();
+  renderDeltaChart();
+}
+
+// ============================================================
+// Resumen por estación — compute real season stats from YEAR_DATA
+// Seasons in southern hemisphere:
+//   Verano:    Dec-Jan-Feb     (months 11, 0, 1)
+//   Otoño:     Mar-Apr-May     (2, 3, 4)
+//   Invierno:  Jun-Jul-Aug     (5, 6, 7)
+//   Primavera: Sep-Oct-Nov     (8, 9, 10)
+// ============================================================
+
+const SEASON_MONTHS = {
+  verano:    [11, 0, 1],
+  otono:     [2, 3, 4],
+  invierno:  [5, 6, 7],
+  primavera: [8, 9, 10]
+};
+
+function computeSeasonStatsForStation(stationKey) {
+  // Returns { verano: [prom, days>28, deltaUR], otono: [...], invierno: [...], primavera: [...] }
+  // Each value is a string '—' if no data.
+  const out = { verano: null, otono: null, invierno: null, primavera: null };
+  if (!YEAR_DATA) return out;
+  const sd = (stationKey === '__avg')
+    ? null
+    : YEAR_DATA[stationKey];
+  const isla = YEAR_DATA.isla;
+
+  for (const seasonName of Object.keys(SEASON_MONTHS)) {
+    const months = SEASON_MONTHS[seasonName];
+    let temps = [], deltas = [], over28 = 0;
+
+    function collectFor(byDay) {
+      Object.entries(byDay).forEach(([ymd, day]) => {
+        const d = new Date(ymd);
+        if (!months.includes(d.getMonth())) return;
+        if (day.all_avg == null) return;
+        temps.push(day.all_avg);
+        if (day.all_avg > 28) over28++;
+        const islaDay = isla && isla[ymd];
+        if (islaDay && islaDay.all_avg != null) deltas.push(day.all_avg - islaDay.all_avg);
+      });
+    }
+
+    if (stationKey === '__avg') {
+      // Avg of 4 urbans → for each day, compute avg of urban stations
+      const urbans = ['providencia', 'stgocentro', 'renca', 'cerrillos'];
+      const allDays = new Set();
+      urbans.forEach(u => YEAR_DATA[u] && Object.keys(YEAR_DATA[u]).forEach(d => allDays.add(d)));
+      for (const ymd of allDays) {
+        const d = new Date(ymd);
+        if (!months.includes(d.getMonth())) continue;
+        const dayTemps = urbans.map(u => YEAR_DATA[u] && YEAR_DATA[u][ymd] && YEAR_DATA[u][ymd].all_avg).filter(t => t != null);
+        if (dayTemps.length === 0) continue;
+        const avg = dayTemps.reduce((a,c)=>a+c,0) / dayTemps.length;
+        temps.push(avg);
+        if (avg > 28) over28++;
+        const islaDay = isla && isla[ymd];
+        if (islaDay && islaDay.all_avg != null) deltas.push(avg - islaDay.all_avg);
+      }
+    } else if (sd) {
+      collectFor(sd);
+    }
+
+    if (temps.length === 0) {
+      out[seasonName] = null;
+    } else {
+      const prom = temps.reduce((a,c)=>a+c, 0) / temps.length;
+      const dUR = deltas.length ? deltas.reduce((a,c)=>a+c, 0) / deltas.length : null;
+      out[seasonName] = [
+        prom.toFixed(1) + '°',
+        String(over28),
+        dUR != null ? (dUR >= 0 ? '+' : '') + dUR.toFixed(1) + '°' : '—'
+      ];
+    }
+  }
+  return out;
+}
+
+function applyComputedSeasons() {
+  Object.keys(STATION_DATA).forEach(key => {
+    const s = computeSeasonStatsForStation(key);
+    if (!STATION_DATA[key].seasons) STATION_DATA[key].seasons = {};
+    Object.keys(s).forEach(season => {
+      if (s[season]) STATION_DATA[key].seasons[season] = s[season];
+    });
+  });
+}
+
+// ============================================================
+// Per-station condition icon (Niebla/Nublado/Parcial/Soleado/Ola Calor/Noche)
+// ============================================================
+
+const CONDITION_ICONS = {
+  'soleado':  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4" fill="currentColor" fill-opacity="0.25"/><line x1="12" y1="3" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="21"/><line x1="3" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="21" y2="12"/><line x1="5.5" y1="5.5" x2="7" y2="7"/><line x1="17" y1="17" x2="18.5" y2="18.5"/><line x1="5.5" y1="18.5" x2="7" y2="17"/><line x1="17" y1="7" x2="18.5" y2="5.5"/></svg>',
+  'parcial':  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="8" r="3"/><path d="M5,18 a3.5,3.5 0 0 1 0,-7 a4.5,4.5 0 0 1 9,0 a3.5,3.5 0 0 1 0,7 Z"/></svg>',
+  'nublado':  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6,18 a4,4 0 0 1 0,-8 a5,5 0 0 1 10,0 a4,4 0 0 1 0,8 Z" fill="currentColor" fill-opacity="0.18"/></svg>',
+  'niebla':   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="9" x2="21" y2="9"/><line x1="5" y1="13" x2="19" y2="13"/><line x1="3" y1="17" x2="17" y2="17"/></svg>',
+  'ola-calor':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="10" r="2.5" fill="currentColor" fill-opacity="0.4"/><line x1="9" y1="3" x2="9" y2="5"/><line x1="3" y1="10" x2="5" y2="10"/><line x1="13" y1="10" x2="15" y2="10"/><path d="M19 6 v10 a2,2 0 0 1 -4,0 v-10 Z" fill="currentColor" fill-opacity="0.6"/></svg>',
+  'noche':    '<svg viewBox="0 0 24 24" fill="none"><path d="M16 4 A9 9 0 1 0 19 17 A7.5 7.5 0 0 1 16 4 Z" fill="#F4E2A5" stroke="currentColor" stroke-width="1.2"/></svg>'
+};
+
+function setStationConditionIcon(card, cond) {
+  let el = card.querySelector('.sc-cond');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'sc-cond';
+    const name = card.querySelector('.sc-name');
+    if (name && name.parentNode) name.parentNode.insertBefore(el, name);
+  }
+  if (!cond) { el.style.visibility = 'hidden'; return; }
+  el.style.visibility = '';
+  el.dataset.cond = cond;
+  el.innerHTML = CONDITION_ICONS[cond] || '';
+}
+
+function applyStationConditions(allCurrent) {
+  if (!allCurrent) return;
+  const hour = new Date().getHours();
+  const isNight = hour >= 19 || hour < 6;
+  for (const [stationId, cardClass] of Object.entries(STATION_CARD_CLASS)) {
+    const d = allCurrent[stationId];
+    const card = document.querySelector('.station-card.' + cardClass);
+    if (!card) continue;
+    if (!d || d.error) { setStationConditionIcon(card, null); continue; }
+    let cond;
+    if (isNight) {
+      if (d.humidity != null && d.humidity >= 88) cond = 'niebla';
+      else if (d.humidity != null && d.humidity >= 75) cond = 'nublado';
+      else cond = 'noche';
+    } else {
+      cond = classifyCondition({ temp: d.temp, humidity: d.humidity, radHoriz: d.radHoriz, hour });
+    }
+    setStationConditionIcon(card, cond);
+  }
+}
+
+// ============================================================
+// Δ Urbano-Rural — recompute from real data (Phase 2B current + Phase 2C history)
+// Replaces the hardcoded placeholders in STATION_DATA
+// ============================================================
+let LATEST_CURRENT = null;   // result of fetchAllStations()
+let LATEST_HISTORY = null;   // result of fetchAllHistory()
+
+const _stationIdMap = {
+  providencia: 'providencia',
+  stgocentro:  'stgo-centro',
+  renca:       'renca',
+  cerrillos:   'cerrillos',
+  sancarlos:   'san-carlos',
+  chamisero:   'chamisero',
+  isla:        'isla-maipo'
+};
+
+function _fmtDelta(v) {
+  if (v == null || isNaN(v)) return '—';
+  return (v >= 0 ? '+' : '') + v.toFixed(1) + '°';
+}
+function _fmtDeltaBig(v) {
+  if (v == null || isNaN(v)) return '—';
+  return (v >= 0 ? '+' : '') + v.toFixed(1) + '°C';
+}
+
+// ============================================================
+// Δ Chart — draw today's hourly deltas (station - isla)
+// ============================================================
+function renderDeltaChart() {
+  const g = document.getElementById('delta-chart-paths');
+  if (!g) return;
+  const stationKey = activeStation;
+  const stationId = ({
+    providencia: 'providencia',
+    stgocentro:  'stgo-centro',
+    renca:       'renca',
+    cerrillos:   'cerrillos',
+    sancarlos:   'san-carlos',
+    chamisero:   'chamisero',
+    isla:        'isla-maipo'
+  })[stationKey];
+
+  if (!LATEST_HISTORY) { g.innerHTML = ''; return; }
+  const islaHist = LATEST_HISTORY['isla-maipo'];
+  if (!islaHist || islaHist.error) { g.innerHTML = ''; return; }
+
+  // Compute series of hourly deltas (up to 24 points)
+  let series = []; // [{hour, delta}]
+  if (stationKey === '__avg') {
+    const urbanIds = ['providencia', 'stgo-centro', 'renca', 'cerrillos'];
+    for (let i = 0; i < 24; i++) {
+      const il = islaHist.hourlyAvg[i] && islaHist.hourlyAvg[i].temp;
+      if (il == null) continue;
+      const urbanTemps = urbanIds.map(id => {
+        const h = LATEST_HISTORY[id];
+        return h && h.hourlyAvg && h.hourlyAvg[i] && h.hourlyAvg[i].temp;
+      }).filter(t => t != null);
+      if (urbanTemps.length === 0) continue;
+      const avg = urbanTemps.reduce((a,c)=>a+c,0) / urbanTemps.length;
+      series.push({ i: i, delta: avg - il });
+    }
+  } else if (stationId) {
+    const sHist = LATEST_HISTORY[stationId];
+    if (sHist && !sHist.error && sHist.hourlyAvg) {
+      for (let i = 0; i < 24; i++) {
+        const s = sHist.hourlyAvg[i] && sHist.hourlyAvg[i].temp;
+        const il = islaHist.hourlyAvg[i] && islaHist.hourlyAvg[i].temp;
+        if (s != null && il != null) series.push({ i: i, delta: s - il });
+      }
+    }
+  }
+  if (series.length < 2) { g.innerHTML = ''; return; }
+
+  // Chart geometry (matches existing viewBox 0 0 280 70)
+  const W = 280, H = 70;
+  const yMin = 0, yMax = 8;  // grid is at +0/+4/+8 in the existing HTML
+  const yScale = v => H - 10 - ((v - yMin) / (yMax - yMin)) * (H - 20);
+  const xScale = i => (i / 23) * (W - 10) + 5;
+
+  let line = '', area = '';
+  series.forEach((p, idx) => {
+    const x = xScale(p.i), y = yScale(p.delta);
+    line += (idx === 0 ? 'M' : ' L') + x.toFixed(1) + ',' + y.toFixed(1);
+  });
+  const first = series[0], last = series[series.length - 1];
+  area = line + ' L' + xScale(last.i).toFixed(1) + ',' + H + ' L' + xScale(first.i).toFixed(1) + ',' + H + ' Z';
+
+  // Marker on last point ("ahora")
+  const lx = xScale(last.i).toFixed(1);
+  const ly = yScale(last.delta).toFixed(1);
+
+  g.innerHTML =
+    '<path d="' + area + '" fill="url(#dg)"/>' +
+    '<path d="' + line + '" stroke="white" stroke-width="2" fill="none" stroke-linejoin="round"/>' +
+    '<circle cx="' + lx + '" cy="' + ly + '" r="3" fill="white"/>' +
+    '<line x1="' + lx + '" y1="0" x2="' + lx + '" y2="' + H + '" stroke="white" stroke-width="0.5" stroke-dasharray="2 2" opacity="0.5"/>';
+}
+
+function recomputeStationDeltas() {
+  if (!LATEST_CURRENT) return;
+  const isla = LATEST_CURRENT['isla-maipo'];
+  if (!isla || isla.error || isla.temp == null) return;
+  const islaTemp = isla.temp;
+  const islaHist = LATEST_HISTORY && LATEST_HISTORY['isla-maipo'];
+
+  Object.keys(_stationIdMap).forEach(key => {
+    const sId = _stationIdMap[key];
+    const cur = LATEST_CURRENT[sId];
+    if (!STATION_DATA[key]) return;
+    if (!cur || cur.error || cur.temp == null) return;
+
+    // Δ ahora — directo de las temps actuales
+    const dNow = cur.temp - islaTemp;
+    STATION_DATA[key].deltaNow = _fmtDelta(dNow);
+    STATION_DATA[key].deltaBig = _fmtDeltaBig(dNow);
+
+    // Δ promedio + máx de hoy — solo si tenemos history horario de ambos
+    if (islaHist && !islaHist.error && islaHist.hourlyAvg) {
+      const sHist = LATEST_HISTORY[sId];
+      if (sHist && !sHist.error && sHist.hourlyAvg) {
+        const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+        const nowH = new Date().getHours();
+        const deltas = [];
+        // Cada bucket del hourlyAvg representa una hora de las últimas 24
+        // Buckets 0=24h ago … 23=ahora. Tomo solo los de "hoy" (desde medianoche local hasta ahora).
+        for (let i = Math.max(0, 23 - nowH); i <= 23; i++) {
+          const s = sHist.hourlyAvg[i] && sHist.hourlyAvg[i].temp;
+          const l = islaHist.hourlyAvg[i] && islaHist.hourlyAvg[i].temp;
+          if (s != null && l != null) {
+            // i corresponde a la hora: 23 = ahora, 23-nowH = 00:00 de hoy
+            const hour = (24 - (23 - i) + new Date().getHours()) % 24;
+            deltas.push({ hour: nowH - (23 - i), delta: s - l });
+          }
+        }
+        if (deltas.length > 0) {
+          const avg = deltas.reduce((a, c) => a + c.delta, 0) / deltas.length;
+          let maxItem = deltas[0];
+          deltas.forEach(d => { if (d.delta > maxItem.delta) maxItem = d; });
+          STATION_DATA[key].deltaAvg = _fmtDelta(avg);
+          STATION_DATA[key].deltaMax = _fmtDelta(maxItem.delta);
+          STATION_DATA[key].deltaMaxHour = String(maxItem.hour).padStart(2,'0') + ':00';
+        }
+      }
+    }
+  });
+
+  // Promedio de las 4 urbanas vs Isla
+  const urbanIds = ['providencia', 'stgo-centro', 'renca', 'cerrillos'];
+  const urbanTemps = urbanIds.map(id => LATEST_CURRENT[id] && LATEST_CURRENT[id].temp)
+    .filter(t => t != null && !isNaN(t));
+  if (urbanTemps.length > 0) {
+    const avgT = urbanTemps.reduce((a,c) => a+c, 0) / urbanTemps.length;
+    const dAvg = avgT - islaTemp;
+    STATION_DATA.__avg.deltaNow = _fmtDelta(dAvg);
+    STATION_DATA.__avg.deltaBig = _fmtDeltaBig(dAvg);
+  }
+
+  // Refrescar la card de la estación activa + Δ chart
+  if (typeof activeStation !== 'undefined' && STATION_DATA[activeStation]) {
+    setActiveStation(activeStation);
+  }
+  renderDeltaChart();
 }
 
 // Bind station-card clicks
@@ -514,7 +821,7 @@ function stopStationRotate() {
 // Phase 2B — ThingSpeak fetch + render real data
 // ============================================================
 
-const REFRESH_INTERVAL_MS = 5 * 60 * 1000;   // 5 min
+const REFRESH_INTERVAL_MS = 2 * 60 * 1000;   // 2 min (más frecuente para ver cambios)
 const OFFLINE_THRESHOLD_MIN = 30;             // station offline if no data in 30 min
 
 // Maps station.id (from data.js) → CSS class of the station card it renders into
@@ -756,6 +1063,10 @@ async function updateAll() {
   }
   updateNetStatus(offline);
 
+  // Store + recompute Δ Urbano-Rural with real data
+  LATEST_CURRENT = all;
+  recomputeStationDeltas();
+
   // Condition detection + season banner
   setActiveCondition(detectNetworkCondition(all));
   updateSeasonBanner();
@@ -766,6 +1077,8 @@ async function updateAll() {
   const mm = String(now.getMinutes()).padStart(2, '0');
   const timeEl = document.querySelector('.clock .time');
   if (timeEl) timeEl.textContent = hh + ':' + mm;
+  const luEl = document.getElementById('lastUpdate');
+  if (luEl) luEl.textContent = 'Actualizado ' + hh + ':' + mm;
   const days = ['DOMINGO','LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES','SÁBADO'];
   const months = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
   const dateEl = document.querySelector('.clock .date');
@@ -1091,6 +1404,8 @@ async function updateHistorical() {
     renderWindRose(all['providencia']);
   }
   renderDailyStripExtremes(all);
+  LATEST_HISTORY = all;
+  recomputeStationDeltas();
 }
 
 // Initial historical fetch + schedule every 30 min
@@ -1207,9 +1522,12 @@ function updateSeasonBanner() {
   // Mark current season row in Resumen
   const seasonRows = document.querySelectorAll('.stats-card .season-row');
   const seasonOrder = ['summer','autumn','winter','spring'];  // matches the 4 rows in HTML order
+  const currentIdx = seasonOrder.indexOf(s.cls);
   seasonRows.forEach((row, i) => {
-    row.classList.toggle('current', seasonOrder[i] === s.cls);
-    row.classList.toggle('upcoming', seasonOrder[i] !== s.cls);
+    row.classList.toggle('current', i === currentIdx);
+    // Solo las FUTURAS (después de la actual) van como upcoming/transparente.
+    // Las pasadas (verano si estamos en otoño) tienen datos → opacidad normal.
+    row.classList.toggle('upcoming', i > currentIdx);
     // Toggle the EN CURSO badge
     const nameEl = row.querySelector('.season-name');
     if (!nameEl) return;
