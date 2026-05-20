@@ -91,8 +91,8 @@
   /* ---------- DAILY STRIP — fills its container ---------- */
   .daily-strip {
     background: var(--navy);
-    border-radius: var(--radius-pill);
-    padding: 8px 48px 8px 22px;
+    border-radius: 20px;
+    padding: 8px 22px 8px 22px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -125,7 +125,7 @@
   .ds-ampm-icon svg { width: 22px; height: 22px; }
 
   .ds-conditions {
-    display: flex; align-items: center; gap: 16px;
+    display: flex; align-items: center; gap: 10px;
     justify-content: center;
   }
   .ds-condition {
@@ -723,8 +723,9 @@
     min-height: 22px;
   }
   .heatmap-card .card-title {
-    min-height: 18px; white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis;
+    min-height: 32px;
+    line-height: 1.15;
+    white-space: normal;
   }
   .hm-tabs {
     display: inline-flex; gap: 2px;
