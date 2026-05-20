@@ -1230,9 +1230,11 @@ function formatTSDate(d) {
 }
 
 function thingspeakUrlChunk(channelId, readKey, start, end) {
-  // average=60 = 1 punto cada hora → 24 puntos/día. Un chunk trimestral = ~90 × 24 = 2160 records (cabe en 8000).
+  // average=60 = 1 punto cada hora. Año a la fecha (Ene 1 → hoy) cabe holgado en 8000.
+  // timezone=America/Santiago para que start/end se interpreten en hora local Chile.
   return 'https://api.thingspeak.com/channels/' + channelId + '/feeds.json?api_key=' + readKey +
-         '&start=' + formatTSDate(start) + '&end=' + formatTSDate(end) + '&average=60&results=8000';
+         '&start=' + formatTSDate(start) + '&end=' + formatTSDate(end) +
+         '&average=60&results=8000&timezone=America/Santiago';
 }
 
 async function fetchYearChunk(station, start, end) {
@@ -1251,23 +1253,36 @@ async function fetchYearChunk(station, start, end) {
   }
 }
 
+async function loadStationJSON(station) {
+  // Cargado por GitHub Actions (scripts/update-data.js) — acumulador histórico.
+  try {
+    const res = await fetch('data/' + station.id + '.json', { cache: 'no-cache' });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json && json.byDay && Object.keys(json.byDay).length > 0) return json;
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function fetchYearHistory(station) {
   if (!station.fields.temp) return { error: 'no-temp-field', station, byDay: {} };
-  // Divido el año en 4 chunks trimestrales para esquivar el cap de 8000 records de ThingSpeak
-  // cuando las estaciones muestrean cada ~2 min (que de otra forma haría que `days=365` devuelva solo ~11 días)
-  const now = new Date();
-  const chunks = [];
-  for (let i = 3; i >= 0; i--) {
-    const start = new Date(now.getFullYear(), now.getMonth() - 3 * (i + 1), now.getDate());
-    const end   = new Date(now.getFullYear(), now.getMonth() - 3 *  i,      now.getDate());
-    chunks.push({ start, end });
+
+  // 1) Intentar el JSON acumulado del repo (mantenido por GitHub Actions)
+  const cached = await loadStationJSON(station);
+  if (cached) {
+    console.log('[year]', station.id, '(JSON cache) days:', Object.keys(cached.byDay).length, '· lastUpdate:', cached.lastUpdate);
+    return { station, byDay: cached.byDay };
   }
-  const settled = await Promise.allSettled(chunks.map(c => fetchYearChunk(station, c.start, c.end)));
-  const allFeeds = [];
-  settled.forEach(r => {
-    if (r.status === 'fulfilled') allFeeds.push.apply(allFeeds, r.value);
-  });
-  return { station, byDay: processYearFeeds(allFeeds, station) };
+
+  // 2) Fallback: API directo, año en curso
+  const now = new Date();
+  const yearStart = new Date(now.getFullYear(), 0, 1);
+  const feeds = await fetchYearChunk(station, yearStart, now);
+  const uniqueDays = new Set(feeds.map(f => f && f.created_at ? f.created_at.slice(0, 10) : null)).size;
+  console.log('[year]', station.id, '(API fallback) feeds:', feeds.length, '· unique dates:', uniqueDays);
+  return { station, byDay: processYearFeeds(feeds, station) };
 }
 
 function processYearFeeds(feeds, station) {
