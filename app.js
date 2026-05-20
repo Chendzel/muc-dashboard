@@ -1770,3 +1770,47 @@ function dayValueFor(stationKey, ymd, viewKey) {
 // Kick off + schedule
 fetchAllYearHistory();
 setInterval(fetchAllYearHistory, YEAR_REFRESH_MS);
+
+
+// ============================================================
+// v1.10 — Mobile carousel for bottom row (delta + heatmap + resumen)
+// ============================================================
+(function initBottomCarousel() {
+  const row  = document.querySelector('.bottom-row');
+  const dots = document.querySelectorAll('.bottom-dot');
+  if (!row || !dots.length) return;
+
+  const cards = [
+    row.querySelector('.delta-card'),
+    row.querySelector('.heatmap-card'),
+    row.querySelector('.stats-card')
+  ];
+
+  function isMobile() { return window.matchMedia('(max-width: 767px)').matches; }
+
+  function setActiveDot(idx) {
+    dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+  }
+
+  function onScroll() {
+    if (!isMobile()) return;
+    const x = row.scrollLeft;
+    const w = row.clientWidth;
+    const idx = Math.round(x / Math.max(1, w));
+    setActiveDot(Math.max(0, Math.min(cards.length - 1, idx)));
+  }
+
+  row.addEventListener('scroll', onScroll, { passive: true });
+
+  dots.forEach((dot, i) => {
+    dot.addEventListener('click', () => {
+      if (!cards[i]) return;
+      cards[i].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+    });
+  });
+
+  window.addEventListener('resize', () => {
+    if (!isMobile()) setActiveDot(0);
+    else onScroll();
+  });
+})();

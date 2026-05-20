@@ -438,8 +438,9 @@
   }
   .sc-metric .sub.dir { color: var(--coral); font-weight: 700; }
 
-  /* ISLA DE MAIPO — rural reference card, gets full width with extra info */
-  .s-isla .sc-body {
+  /* ISLA DE MAIPO + cards chicas — layout 4 columnas con .isla-metric-col */
+  .s-isla .sc-body,
+  .station-card:not(.s-providencia):has(.isla-metric-col) .sc-body {
     grid-template-columns: 1fr 0.85fr 0.85fr 1.55fr;
   }
   .s-isla .sc-tag {
@@ -523,6 +524,8 @@
     gap: 14px;
     height: 230px;
   }
+  /* Carousel dots: ocultos por defecto, visibles solo en mobile */
+  .bottom-dots { display: none; }
 
   .delta-card {
     background: linear-gradient(135deg, #F8BC7E 0%, #E78D70 100%);
@@ -795,46 +798,13 @@
   .heatmap-grid[hidden] { display: none !important; }
 
 
-  /* Apply Isla-style horizontal 4-col layout to all small stations */
-  .station-card:not(.s-providencia):not(.s-isla) .sc-body {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr 1fr 1fr;
-    gap: 4px;
-    align-items: center;
+  /* v1.10: small-station cards ahora usan .isla-metric-col (mismo layout que Isla).
+     Las reglas .sc-right/.sc-metric quedaron obsoletas — ver bloque .isla-metric-col arriba. */
+  .station-card:not(.s-providencia):has(.isla-metric-col) .sc-body {
+    display: grid;
+    align-items: stretch;
     flex: 1;
-  }
-  .station-card:not(.s-providencia):not(.s-isla) .sc-right {
-    display: contents;
-  }
-  .station-card:not(.s-providencia):not(.s-isla) .sc-metric {
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 2px;
-    padding: 4px 2px;
-    border-left: 1px solid rgba(44,75,102,0.06);
-    text-align: center;
-    min-width: 0;
-    overflow: hidden;
-  }
-  .station-card:not(.s-providencia):not(.s-isla) .sc-metric .val-block {
-    text-align: center;
-    min-width: 0;
-    display: flex; flex-direction: column; align-items: center;
-  }
-  .station-card:not(.s-providencia):not(.s-isla) .sc-metric .val {
-    font-size: 14px; line-height: 1; white-space: nowrap;
-  }
-  .station-card:not(.s-providencia):not(.s-isla) .sc-metric .val .u {
-    font-size: 9px; margin-left: 2px;
-  }
-  .station-card:not(.s-providencia):not(.s-isla) .sc-metric .icon {
-    width: 24px; height: 24px;
-  }
-  .station-card:not(.s-providencia):not(.s-isla) .sc-metric .icon svg {
-    width: 18px; height: 18px;
-  }
-  .station-card:not(.s-providencia):not(.s-isla) .sc-metric .sub.dir {
-    font-size: 8px; color: var(--text-mute); margin-top: 2px;
+    gap: 4px;
   }
 
 
@@ -860,15 +830,7 @@
   }
 
 
-  /* small-station metric labels (Isla-style) */
-  .station-card:not(.s-providencia):not(.s-isla) .sc-metric .val-block::after {
-    font-size: 11px; font-weight: 700; letter-spacing: 0.4px;
-    color: var(--text-mute); text-transform: uppercase;
-    margin-top: 4px; line-height: 1;
-  }
-  .station-card:not(.s-providencia):not(.s-isla) .sc-metric:has(.icon.hum) .val-block::after { content: "Hum"; }
-  .station-card:not(.s-providencia):not(.s-isla) .sc-metric:has(.icon.rad) .val-block::after { content: "Rad"; }
-  .station-card:not(.s-providencia):not(.s-isla) .sc-metric:has(.icon.wind) .val-block::after { content: "Viento"; }
+  /* v1.10: small-station labels handled by .isla-metric-col ::after rules (below) */
 
 
   /* PROVIDENCIA — multi-series sparkline */
@@ -1232,18 +1194,48 @@
     .s-providencia .sc-top-row { grid-template-columns: 1.2fr 0.9fr 0.9fr 1fr; }
     .s-providencia .sc-chart-multi svg { height: 50px; }
     .sc-windrose svg { max-width: 140px; }
-    /* Bottom row: 1 col stack — todas las cards igualmente visibles */
+    /* v1.10: Bottom row como carrusel horizontal en mobile (achica la página y resuelve el footer lejano) */
     .bottom-row {
-      grid-template-columns: 1fr !important;
+      display: flex !important;
+      grid-template-columns: none !important;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
       gap: 10px;
+      padding-bottom: 2px;
+      scroll-padding: 0;
     }
+    .bottom-row::-webkit-scrollbar { display: none; }
     .delta-card, .heatmap-card, .stats-card {
-      min-height: auto;
+      flex: 0 0 100%;
       width: 100%;
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
     }
     .delta-card { min-height: 260px; }
     .heatmap-card { min-height: 320px; padding-bottom: 18px; }
     .stats-card { min-height: 320px; }
+    /* Dots indicator visible solo en mobile */
+    .bottom-dots {
+      display: flex !important;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      margin: 4px 0 2px;
+      padding: 0;
+    }
+    .bottom-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      border: none; padding: 0; cursor: pointer;
+      background: rgba(44,75,102,0.22);
+      transition: background 0.2s, transform 0.2s;
+    }
+    .bottom-dot.active {
+      background: var(--coral);
+      transform: scale(1.25);
+    }
     /* Heatmap tabs siempre visibles dentro de la card en mobile */
     .heatmap-card .hm-tabs-row { padding: 0 4px; }
     .heatmap-card .heatmap-grid { padding-bottom: 8px; }
@@ -1279,10 +1271,7 @@
   }
 
 
-  /* Fallback label content using ~ (sibling) for broader browser support — same effect as :has() above */
-  .station-card:not(.s-providencia):not(.s-isla) .sc-metric .icon.hum ~ .val-block::after  { content: "Hum"; }
-  .station-card:not(.s-providencia):not(.s-isla) .sc-metric .icon.rad ~ .val-block::after  { content: "Rad"; }
-  .station-card:not(.s-providencia):not(.s-isla) .sc-metric .icon.wind ~ .val-block::after { content: "Viento"; }
+  /* Fallback label content using ~ (sibling) — Providencia top-row sigue usando .sc-metric */
   .s-providencia .sc-top-row .sc-metric .icon.hum ~ .val-block::after  { content: "Hum"; }
   .s-providencia .sc-top-row .sc-metric .icon.rad ~ .val-block::after  { content: "Rad"; }
   .s-providencia .sc-top-row .sc-metric .icon.wind ~ .val-block::after { content: "Viento"; }
@@ -1352,9 +1341,15 @@
     margin-top: 3px;
   }
   /* Isla card values are bigger; unit proportional */
-  .s-isla .isla-metric-col .val .u {
+  .isla-metric-col .val .u {
     font-size: 11px;
     margin-top: 2px;
+  }
+  .station-card:not(.s-providencia):not(.s-isla) .isla-metric-col .val {
+    font-size: 18px;
+  }
+  .station-card:not(.s-providencia):not(.s-isla) .isla-metric-col .val .u {
+    font-size: 9px;
   }
 
 
@@ -1373,21 +1368,21 @@
 
 
   /* Fix 4: Isla wind column — accommodate dir+degrees label */
-  .s-isla .isla-metric-col:has(.icon.wind) .lbl {
+  .isla-metric-col:has(.icon.wind) .lbl {
     white-space: nowrap;
     font-size: 8px;
     letter-spacing: 0.3px;
   }
-  .s-isla .isla-metric-col:has(.icon.wind) .val {
+  .isla-metric-col:has(.icon.wind) .val {
     font-size: 18px;
   }
   /* Sibling-selector fallback (browsers sin :has) */
-  .s-isla .isla-metric-col .icon.wind ~ .lbl {
+  .isla-metric-col .icon.wind ~ .lbl {
     white-space: nowrap;
     font-size: 8px;
     letter-spacing: 0.3px;
   }
-  .s-isla .isla-metric-col .icon.wind ~ .val {
+  .isla-metric-col .icon.wind ~ .val {
     font-size: 18px;
   }
 
@@ -1434,16 +1429,16 @@
   }
 
   /* Isla card consistency v1.9 — Hum/Rad usan CSS ::after, Viento mantiene .lbl con dirección */
-  .s-isla .isla-metric-col:has(.icon.hum) .lbl,
-  .s-isla .isla-metric-col:has(.icon.rad) .lbl { display: none; }
+  .isla-metric-col:has(.icon.hum) .lbl,
+  .isla-metric-col:has(.icon.rad) .lbl { display: none; }
   /* Fallback sin :has() */
-  .s-isla .isla-metric-col .icon.hum ~ .lbl,
-  .s-isla .isla-metric-col .icon.rad ~ .lbl { display: none; }
-  .s-isla .isla-metric-col {
+  .isla-metric-col .icon.hum ~ .lbl,
+  .isla-metric-col .icon.rad ~ .lbl { display: none; }
+  .isla-metric-col {
     position: relative;
   }
-  .s-isla .isla-metric-col:has(.icon.hum)::after,
-  .s-isla .isla-metric-col:has(.icon.rad)::after {
+  .isla-metric-col:has(.icon.hum)::after,
+  .isla-metric-col:has(.icon.rad)::after {
     content: "";
     display: block;
     text-align: center;
@@ -1451,11 +1446,11 @@
     color: var(--text-mute); text-transform: uppercase;
     line-height: 1; margin-top: 4px;
   }
-  .s-isla .isla-metric-col:has(.icon.hum)::after  { content: "Hum"; }
-  .s-isla .isla-metric-col:has(.icon.rad)::after  { content: "Rad"; }
+  .isla-metric-col:has(.icon.hum)::after  { content: "Humedad"; }
+  .isla-metric-col:has(.icon.rad)::after  { content: "Radiación"; }
   /* Wind label en Isla: muestra dirección, pero estilizada igual que otros labels */
-  .s-isla .isla-metric-col:has(.icon.wind) .lbl,
-  .s-isla .isla-metric-col .icon.wind ~ .lbl {
+  .isla-metric-col:has(.icon.wind) .lbl,
+  .isla-metric-col .icon.wind ~ .lbl {
     display: block;
     font-size: 9px; font-weight: 700; letter-spacing: 0.3px;
     color: var(--text-mute); text-transform: uppercase;
@@ -1464,14 +1459,12 @@
   }
 
 
-  /* Alineación uniforme metric columns v1.9 — icon top, val centered, label bottom */
-  .station-card:not(.s-providencia):not(.s-isla) .sc-metric,
+  /* Alineación uniforme metric columns — Providencia top-row sigue usando .sc-metric */
   .s-providencia .sc-top-row .sc-metric {
     justify-content: space-between !important;
     min-height: 70px;
     padding: 6px 2px !important;
   }
-  .station-card:not(.s-providencia):not(.s-isla) .sc-metric .val-block,
   .s-providencia .sc-top-row .sc-metric .val-block {
     flex: 1;
     display: flex;
@@ -1480,8 +1473,9 @@
     align-items: center;
   }
   /* Isla también alineada */
-  .s-isla .sc-body { align-items: stretch; }
-  .s-isla .isla-metric-col {
+  .s-isla .sc-body,
+  .station-card:not(.s-providencia):has(.isla-metric-col) .sc-body { align-items: stretch; }
+  .isla-metric-col {
     display: flex;
     flex-direction: column;
     align-items: center;
