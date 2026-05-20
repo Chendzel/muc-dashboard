@@ -14,23 +14,4 @@ Dashboard en vivo del proyecto FONDECYT Nº 1241886 (MASE, PUC). Lee datos de 8 
 
 Abrí `index.html` en cualquier navegador. No requiere build ni servidor.
 
-## Deploy
-
-Hospedado en GitHub Pages. Cualquier cambio en `main` se publica automáticamente.
-
-## Estaciones
-
-| Nombre | Tipo | Channel ID |
-|---|---|---|
-| Providencia (viento / luz / radiación) | urbana | 2865012 |
-| Providencia (temperatura / humedad) | urbana | 2865013 |
-| Isla de Maipo | rural | 2911247 |
-| San Carlos de Apoquindo | periférica | 2950699 |
-| Chamisero | periférica | 2950701 |
-| Renca | urbana | 3027229 |
-| Santiago Centro | urbana | 3175711 |
-| Cerrillos | urbana | 3218465 |
-
----
-
 Uso académico — Pontificia Universidad Católica de Chile, MASE.
