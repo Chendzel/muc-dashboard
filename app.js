@@ -1223,8 +1223,9 @@ function dateToYMD(d) {
 }
 
 function thingspeakUrlYear(channelId, readKey) {
-  // average=180 = un punto cada 3 horas → 8 buckets/día → ~2920 registros/año (cabe en 8000)
-  return 'https://api.thingspeak.com/channels/' + channelId + '/feeds.json?api_key=' + readKey + '&days=365&average=180';
+  // average=240 = un punto cada 4 horas → 6 buckets/día → ~2190 registros/año
+  // 240 es valor válido de ThingSpeak (180 NO lo es y la API ignora silenciosamente el param)
+  return 'https://api.thingspeak.com/channels/' + channelId + '/feeds.json?api_key=' + readKey + '&days=365&average=240';
 }
 
 async function fetchYearHistory(station) {
