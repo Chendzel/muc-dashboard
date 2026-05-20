@@ -441,7 +441,7 @@
   /* ISLA DE MAIPO + cards chicas — layout 4 columnas con .isla-metric-col */
   .s-isla .sc-body,
   .station-card:not(.s-providencia):has(.isla-metric-col) .sc-body {
-    grid-template-columns: 1fr 0.85fr 0.85fr 1.55fr;
+    grid-template-columns: 1.2fr 0.85fr 0.85fr 1.25fr;
   }
   .s-isla .sc-tag {
     background: var(--sage); color: white; font-size: 7px;
@@ -1120,7 +1120,9 @@
       justify-content: space-between;
       gap: 12px;
     }
-    .clock { text-align: left; }
+    /* v1.11: clock right-aligned en mobile, status pill a la izquierda */
+    .status-cluster { justify-content: space-between; }
+    .clock { text-align: right; margin-left: auto; }
     .clock .time { font-size: 24px; }
     .clock .date { font-size: 9px; }
     .net-pill { padding: 6px 12px; }
@@ -1214,9 +1216,15 @@
       scroll-snap-align: start;
       scroll-snap-stop: always;
     }
-    .delta-card { min-height: 260px; }
-    .heatmap-card { min-height: 320px; padding-bottom: 18px; }
-    .stats-card { min-height: 320px; }
+    /* v1.11: dar más altura a las cards del carrusel para que no se corten */
+    .delta-card { min-height: 300px; padding-bottom: 16px; }
+    .heatmap-card { min-height: 360px; padding-bottom: 22px; }
+    .stats-card { min-height: 360px; padding-bottom: 16px; }
+    /* Mobile: temp column más ancha, viento más estrecha */
+    .station-card:not(.s-providencia):has(.isla-metric-col) .sc-body {
+      grid-template-columns: 1.4fr 0.85fr 0.85fr 1fr !important;
+      gap: 6px;
+    }
     /* Dots indicator visible solo en mobile */
     .bottom-dots {
       display: flex !important;
@@ -1248,15 +1256,45 @@
     /* Heatmap cells smaller for narrow */
     .hm-cells { font-size: 7px; }
     .hm-months { font-size: 7px; }
-    /* Footer compact */
+    /* v1.11: Footer mobile con jerarquía clara — institución / FONDECYT / versión / logos */
     footer.bar {
       flex-direction: column;
-      align-items: flex-start;
-      gap: 8px;
-      padding: 8px 0;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 0 12px;
+      border-top: 1px solid rgba(44,75,102,0.08);
+      margin-top: 8px;
     }
-    .footer-text { font-size: 9px; }
-    .footer-logos { gap: 14px; opacity: 0.6; }
+    .footer-text {
+      font-size: 10px;
+      text-align: center;
+      line-height: 1.5;
+      color: var(--navy);
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+    .footer-text .fondecyt-num {
+      display: block;
+      margin-top: 4px;
+      color: var(--coral);
+      font-weight: 700;
+      letter-spacing: 0.8px;
+    }
+    .dashboard-version {
+      display: block;
+      margin-top: 6px;
+      font-size: 8px;
+      letter-spacing: 0.6px;
+      color: var(--text-mute);
+      font-weight: 500;
+      text-transform: uppercase;
+    }
+    .footer-logos {
+      gap: 18px;
+      opacity: 0.55;
+      justify-content: center;
+      margin-top: 2px;
+    }
     .footer-logo.uc { width: 70px; height: 22px; }
     .footer-logo.mase { width: 66px; height: 16px; }
     .footer-logo.anid-text { width: 58px; height: 20px; }
@@ -1345,11 +1383,27 @@
     font-size: 11px;
     margin-top: 2px;
   }
+  /* v1.11: cards chicas tienen menos espacio que Isla — val y label proporcionales */
   .station-card:not(.s-providencia):not(.s-isla) .isla-metric-col .val {
-    font-size: 18px;
+    font-size: 17px;
   }
   .station-card:not(.s-providencia):not(.s-isla) .isla-metric-col .val .u {
     font-size: 9px;
+  }
+  .station-card:not(.s-providencia):not(.s-isla) .isla-metric-col:has(.icon.wind) .val,
+  .station-card:not(.s-providencia):not(.s-isla) .isla-metric-col .icon.wind ~ .val {
+    font-size: 16px;
+  }
+  .station-card:not(.s-providencia):not(.s-isla) .isla-metric-col:has(.icon.hum)::after,
+  .station-card:not(.s-providencia):not(.s-isla) .isla-metric-col:has(.icon.rad)::after {
+    font-size: 9px;
+    letter-spacing: 0.5px;
+  }
+  .station-card:not(.s-providencia):not(.s-isla) .isla-metric-col:has(.icon.wind) .lbl,
+  .station-card:not(.s-providencia):not(.s-isla) .isla-metric-col .icon.wind ~ .lbl {
+    font-size: 9px;
+    color: var(--coral);
+    font-weight: 700;
   }
 
 
