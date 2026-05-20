@@ -21,6 +21,10 @@ function setView(v, e) {
 
 const today = (function(){const d=new Date();d.setHours(0,0,0,0);return d;})();
 const yearStart = new Date(today.getFullYear(), 0, 1);
+
+// Populated by Phase 2D fetchAllYearHistory(); declared early to avoid TDZ on regenerateAllHeatmaps/renderUptimeBars
+let YEAR_DATA = {};
+let CURRENT_ACTIVE_STATIONS = new Set(); // station IDs whose last reading is within 60 min
 const jan1Day = yearStart.getDay();
 const startMonday = new Date(yearStart);
 startMonday.setDate(yearStart.getDate() - (jan1Day === 0 ? 6 : jan1Day - 1));
@@ -691,17 +695,25 @@ function updateMapPins(all) {
     const data = all[stationId];
     if (!data || data.error || data.temp == null) return;
     const pin = m.querySelector('.pin');
-    if (pin) {
-      pin.textContent = Math.round(data.temp) + '°';
+    if (!pin) return;
+    const stale = !data.timestamp || (Date.now() - data.timestamp) / 60000 > 60;
+    pin.textContent = Math.round(data.temp) + '°';
+    if (stale) {
+      pin.style.background = '#B0B9C2';
+      pin.style.opacity = '0.55';
+    } else {
       pin.style.background = tempColor(data.temp, 8, 32);
+      pin.style.opacity = '1';
     }
   });
   // Isla off-chip in map
   const islaChip = document.querySelector('.out-chip .dot');
-  if (islaChip && all['isla-maipo'] && !all['isla-maipo'].error && all['isla-maipo'].temp != null) {
-    const t = all['isla-maipo'].temp;
-    islaChip.textContent = Math.round(t) + '°';
-    islaChip.style.background = tempColor(t, 8, 32);
+  const isla = all['isla-maipo'];
+  if (islaChip && isla && !isla.error && isla.temp != null) {
+    const stale = !isla.timestamp || (Date.now() - isla.timestamp) / 60000 > 60;
+    islaChip.textContent = Math.round(isla.temp) + '°';
+    islaChip.style.background = stale ? '#B0B9C2' : tempColor(isla.temp, 8, 32);
+    islaChip.style.opacity = stale ? '0.55' : '1';
   }
 }
 
@@ -719,14 +731,16 @@ async function updateAll() {
   // Update map pins
   updateMapPins(all);
 
-  // Detect offline stations for the network pill
+  // Detect offline stations + populate CURRENT_ACTIVE_STATIONS set
   const offline = [];
+  CURRENT_ACTIVE_STATIONS = new Set();
   for (const [stationId, cardClass] of Object.entries(STATION_CARD_CLASS)) {
     const data = all[stationId];
     const key = cardClass.replace('s-', '');
     if (!data || data.error) { offline.push(key); continue; }
     const minsAgo = (Date.now() - data.timestamp) / 60000;
     if (minsAgo > OFFLINE_THRESHOLD_MIN) offline.push(key);
+    if (minsAgo <= 60) CURRENT_ACTIVE_STATIONS.add(stationId);
   }
   updateNetStatus(offline);
 
@@ -1034,13 +1048,13 @@ function renderWindRose(h) {
 }
 
 function renderDailyStripExtremes(all) {
-  // Network MAX / MIN today across all stations
+  // Solo MAX/MIN de hoy en estaciones actualmente activas
   const temps = [];
-  Object.values(all).forEach(h => {
-    if (h && !h.error) {
-      if (h.minTemp != null) temps.push(h.minTemp);
-      if (h.maxTemp != null) temps.push(h.maxTemp);
-    }
+  Object.entries(all).forEach(([stationId, h]) => {
+    if (!h || h.error) return;
+    if (!CURRENT_ACTIVE_STATIONS.has(stationId)) return;
+    if (h.minTemp != null) temps.push(h.minTemp);
+    if (h.maxTemp != null) temps.push(h.maxTemp);
   });
   if (temps.length === 0) return;
   const minAll = Math.min(...temps), maxAll = Math.max(...temps);
@@ -1098,8 +1112,9 @@ function classifyCondition(ctx) {
 
   if (expectedRad < 50) {
     // De noche no podemos inferir cobertura nubosa por radiación → uso humedad
-    if (humidity != null && humidity >= 85) return 'nublado';
-    return 'soleado'; // noche despejada (sin íconos de luna en el dashboard)
+    if (humidity != null && humidity >= 88) return 'niebla';
+    if (humidity != null && humidity >= 75) return 'nublado';
+    return null; // noche despejada → ningún icono activo, basta con la luna del AM/PM
   }
 
   if (radHoriz == null) return null;
@@ -1110,12 +1125,14 @@ function classifyCondition(ctx) {
 }
 
 function detectNetworkCondition(allCurrent) {
-  // Promedia las urbanas online; ignora periféricas + rural para evitar sesgar
+  // Solo estaciones urbanas ACTIVAS (ultima lectura ≤60 min)
   const urbans = ['providencia', 'stgo-centro', 'renca', 'cerrillos'];
+  const cutoff = Date.now() - 60 * 60 * 1000;
   const temps = [], hums = [], rads = [];
   urbans.forEach(id => {
     const d = allCurrent[id];
     if (!d || d.error) return;
+    if (!d.timestamp || d.timestamp < cutoff) return; // skip stale
     if (d.temp != null) temps.push(d.temp);
     if (d.humidity != null) hums.push(d.humidity);
     if (d.radHoriz != null) rads.push(d.radHoriz);
@@ -1131,13 +1148,25 @@ function detectNetworkCondition(allCurrent) {
 }
 
 function setActiveCondition(cond) {
-  if (!cond) return;
+  const hour = new Date().getHours();
+  const isNight = hour >= 19 || hour < 6;
+  // Swap AM/PM icons: 1st = moon (active at night), 2nd = sun (active at day)
+  const ampm = document.querySelectorAll('.ds-ampm-icon');
+  if (ampm.length >= 2) {
+    ampm[0].classList.toggle('inactive', !isNight);
+    ampm[1].classList.toggle('inactive', isNight);
+  }
   document.querySelectorAll('.ds-condition').forEach(el => {
     const labelEl = el.querySelector('.ds-condition-label');
-    if (!labelEl) return;
+    if (!labelEl) return el.classList.remove('active');
     const txt = labelEl.textContent.toLowerCase().trim();
     const key = txt === 'ola calor' ? 'ola-calor' : txt;
-    el.classList.toggle('active', key === cond);
+    // At night: only allow Niebla/Nublado (no Soleado/Parcial/Ola Calor)
+    if (isNight && (key === 'soleado' || key === 'parcial' || key === 'ola-calor')) {
+      el.classList.remove('active');
+      return;
+    }
+    el.classList.toggle('active', cond != null && key === cond);
   });
 }
 
@@ -1189,8 +1218,6 @@ function updateSeasonBanner() {
 // ============================================================
 
 const YEAR_REFRESH_MS = 6 * 60 * 60 * 1000; // cada 6h
-let YEAR_DATA = {}; // { stationKey: { 'YYYY-MM-DD': { M_avg, T_avg, N_avg, all_avg, all_n, ... } } }
-
 function dateToYMD(d) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
@@ -1271,7 +1298,8 @@ async function fetchAllYearHistory() {
       YEAR_DATA[key] = {};
     }
   });
-  console.log('[year] loaded for', Object.keys(YEAR_DATA), 'stations');
+  console.log('[year] day counts per station:',
+    Object.fromEntries(Object.entries(YEAR_DATA).map(([k, v]) => [k, Object.keys(v).length])));
   // Re-render with real data
   regenerateAllHeatmaps();
   renderUptimeBars();
