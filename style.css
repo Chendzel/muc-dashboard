@@ -275,12 +275,13 @@
     box-shadow: 0 0 0 4px white, 0 3px 12px rgba(44,75,102,0.3);
   }
   .station-marker .label {
-    position: absolute; top: calc(100% + 4px); left: 50%; transform: translateX(-50%);
-    font-size: 10px; font-weight: 700; letter-spacing: 0.6px;
-    color: var(--navy); background: white;
-    padding: 3px 9px; border-radius: var(--radius-pill);
-    box-shadow: 0 2px 6px rgba(44,75,102,0.12);
+    position: absolute; top: calc(100% + 3px); left: 50%; transform: translateX(-50%);
+    font-size: 8px; font-weight: 700; letter-spacing: 0.3px;
+    color: rgba(44,75,102,0.75); background: rgba(255,255,255,0.75);
+    padding: 2px 6px; border-radius: var(--radius-pill);
+    box-shadow: 0 1px 3px rgba(44,75,102,0.08);
     white-space: nowrap;
+    backdrop-filter: blur(2px);
   }
   .station-marker.label-above .label { top: auto; bottom: calc(100% + 4px); }
   .station-marker.label-right .label { top: 50%; left: calc(100% + 6px); transform: translateY(-50%); }
@@ -1397,7 +1398,14 @@
 
   /* Strip aggressive simplification v1.8 — hide dividers + condition labels, smaller icons */
   .ds-divider { display: none !important; }
-  .ds-condition-label { display: none !important; }
+  .ds-condition-label {
+    display: block !important;
+    font-size: 7px !important;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
   .ds-conditions { gap: 6px !important; }
   .ds-condition-icon { width: 26px !important; height: 26px !important; }
   .ds-condition-icon svg { width: 14px !important; height: 14px !important; }
@@ -1425,24 +1433,83 @@
     gap: 8px !important;
   }
 
-  /* Isla card consistency v1.8 — hide HTML .lbl divs, use CSS labels like other stations */
-  .s-isla .isla-metric-col .lbl { display: none; }
+  /* Isla card consistency v1.9 — Hum/Rad usan CSS ::after, Viento mantiene .lbl con dirección */
+  .s-isla .isla-metric-col:has(.icon.hum) .lbl,
+  .s-isla .isla-metric-col:has(.icon.rad) .lbl { display: none; }
+  /* Fallback sin :has() */
+  .s-isla .isla-metric-col .icon.hum ~ .lbl,
+  .s-isla .isla-metric-col .icon.rad ~ .lbl { display: none; }
   .s-isla .isla-metric-col {
     position: relative;
-    padding-bottom: 14px;
   }
-  .s-isla .isla-metric-col::after {
+  .s-isla .isla-metric-col:has(.icon.hum)::after,
+  .s-isla .isla-metric-col:has(.icon.rad)::after {
     content: "";
-    position: absolute;
-    bottom: -4px; left: 0; right: 0;
+    display: block;
     text-align: center;
     font-size: 11px; font-weight: 700; letter-spacing: 0.4px;
     color: var(--text-mute); text-transform: uppercase;
-    line-height: 1;
+    line-height: 1; margin-top: 4px;
   }
   .s-isla .isla-metric-col:has(.icon.hum)::after  { content: "Hum"; }
   .s-isla .isla-metric-col:has(.icon.rad)::after  { content: "Rad"; }
-  .s-isla .isla-metric-col:has(.icon.wind)::after { content: "Viento"; }
-  /* Fallback con sibling selector */
-  .s-isla .isla-metric-col .icon.hum  ~ .val::after  { content: ""; }
-  .s-isla .isla-metric-col .icon.wind ~ .val::after  { content: ""; }
+  /* Wind label en Isla: muestra dirección, pero estilizada igual que otros labels */
+  .s-isla .isla-metric-col:has(.icon.wind) .lbl,
+  .s-isla .isla-metric-col .icon.wind ~ .lbl {
+    display: block;
+    font-size: 9px; font-weight: 700; letter-spacing: 0.3px;
+    color: var(--text-mute); text-transform: uppercase;
+    text-align: center; margin-top: 4px;
+    white-space: nowrap;
+  }
+
+
+  /* Alineación uniforme metric columns v1.9 — icon top, val centered, label bottom */
+  .station-card:not(.s-providencia):not(.s-isla) .sc-metric,
+  .s-providencia .sc-top-row .sc-metric {
+    justify-content: space-between !important;
+    min-height: 70px;
+    padding: 6px 2px !important;
+  }
+  .station-card:not(.s-providencia):not(.s-isla) .sc-metric .val-block,
+  .s-providencia .sc-top-row .sc-metric .val-block {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+  /* Isla también alineada */
+  .s-isla .sc-body { align-items: stretch; }
+  .s-isla .isla-metric-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 70px;
+  }
+
+
+  /* Mobile heatmap tabs — wrap y fonts ajustados para caber sin scroll */
+  @media (max-width: 767px) {
+    /* .hm-tabs flex-wrap mobile fix */
+    .hm-tabs {
+      flex-wrap: wrap !important;
+      justify-content: center;
+      gap: 4px;
+    }
+    .hm-tab {
+      font-size: 9px !important;
+      padding: 4px 8px !important;
+      flex-shrink: 1;
+    }
+    .hm-tab-hour {
+      font-size: 8px !important;
+    }
+    .hm-tabs-row {
+      overflow: visible !important;
+    }
+    /* Footer no se monta sobre heatmap */
+    footer.bar { margin-top: 12px; }
+    .bottom-row { margin-bottom: 8px; }
+  }
