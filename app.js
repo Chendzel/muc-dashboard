@@ -1222,27 +1222,52 @@ function dateToYMD(d) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
-function thingspeakUrlYear(channelId, readKey) {
-  // average=240 = un punto cada 4 horas → 6 buckets/día → ~2190 registros/año
-  // 240 es valor válido de ThingSpeak (180 NO lo es y la API ignora silenciosamente el param)
-  return 'https://api.thingspeak.com/channels/' + channelId + '/feeds.json?api_key=' + readKey + '&days=365&average=240';
+function formatTSDate(d) {
+  const pad = n => String(n).padStart(2, '0');
+  // ThingSpeak espera YYYY-MM-DD HH:NN:SS (espacio URL-encoded)
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '%20' +
+         pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+}
+
+function thingspeakUrlChunk(channelId, readKey, start, end) {
+  // average=60 = 1 punto cada hora → 24 puntos/día. Un chunk trimestral = ~90 × 24 = 2160 records (cabe en 8000).
+  return 'https://api.thingspeak.com/channels/' + channelId + '/feeds.json?api_key=' + readKey +
+         '&start=' + formatTSDate(start) + '&end=' + formatTSDate(end) + '&average=60';
+}
+
+async function fetchYearChunk(station, start, end) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 30000);
+  try {
+    const res = await fetch(thingspeakUrlChunk(station.channelId, station.readKey, start, end), { signal: ctrl.signal });
+    clearTimeout(t);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    return json.feeds || [];
+  } catch (e) {
+    clearTimeout(t);
+    console.warn('[year-chunk] ' + station.name, e.message);
+    return [];
+  }
 }
 
 async function fetchYearHistory(station) {
   if (!station.fields.temp) return { error: 'no-temp-field', station, byDay: {} };
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 30000);
-  try {
-    const res = await fetch(thingspeakUrlYear(station.channelId, station.readKey), { signal: ctrl.signal });
-    clearTimeout(t);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
-    return { station, byDay: processYearFeeds(json.feeds || [], station) };
-  } catch (e) {
-    clearTimeout(t);
-    console.warn('[year] ' + station.name, e.message);
-    return { error: e.message, station, byDay: {} };
+  // Divido el año en 4 chunks trimestrales para esquivar el cap de 8000 records de ThingSpeak
+  // cuando las estaciones muestrean cada ~2 min (que de otra forma haría que `days=365` devuelva solo ~11 días)
+  const now = new Date();
+  const chunks = [];
+  for (let i = 3; i >= 0; i--) {
+    const start = new Date(now.getFullYear(), now.getMonth() - 3 * (i + 1), now.getDate());
+    const end   = new Date(now.getFullYear(), now.getMonth() - 3 *  i,      now.getDate());
+    chunks.push({ start, end });
   }
+  const settled = await Promise.allSettled(chunks.map(c => fetchYearChunk(station, c.start, c.end)));
+  const allFeeds = [];
+  settled.forEach(r => {
+    if (r.status === 'fulfilled') allFeeds.push.apply(allFeeds, r.value);
+  });
+  return { station, byDay: processYearFeeds(allFeeds, station) };
 }
 
 function processYearFeeds(feeds, station) {
