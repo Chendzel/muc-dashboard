@@ -196,6 +196,8 @@ const STATION_PROFILE = {
 function renderUptimeBars() {
   const todayDoy = Math.floor((today - yearStart) / (1000 * 60 * 60 * 24));
   const NS = 'http://www.w3.org/2000/svg';
+  const hasRealData = typeof YEAR_DATA === 'object' && Object.keys(YEAR_DATA).length > 0;
+
   document.querySelectorAll('.sc-uptime').forEach(box => {
     const stationKey = box.dataset.station;
     const svg = box.querySelector('.sc-uptime-svg');
@@ -203,10 +205,10 @@ function renderUptimeBars() {
     if (!svg) return;
     svg.setAttribute('shape-rendering', 'crispEdges');
     svg.innerHTML = '';
-    const profile = STATION_PROFILE[stationKey] || { gapRate: 0.02, solar: false };
+    const sd = hasRealData ? YEAR_DATA[stationKey] : null;
     let total = 0, covered = 0;
 
-    // Future days as one continuous rect (avoids subpixel gaps)
+    // Future days as one continuous rect
     if (todayDoy < 364) {
       const future = document.createElementNS(NS, 'rect');
       future.setAttribute('x', todayDoy + 1);
@@ -216,8 +218,11 @@ function renderUptimeBars() {
       future.setAttribute('fill', 'rgba(44,75,102,0.06)');
       svg.appendChild(future);
     }
-    // Past days: individual cells (slight overlap for crisp join)
+    // Past days
     for (let d = 0; d <= todayDoy; d++) {
+      const date = new Date(yearStart);
+      date.setDate(yearStart.getDate() + d);
+      const ymd = dateToYMD(date);
       const rect = document.createElementNS(NS, 'rect');
       rect.setAttribute('x', d);
       rect.setAttribute('y', 0);
@@ -225,15 +230,22 @@ function renderUptimeBars() {
       rect.setAttribute('height', 6);
       let color;
       total++;
-      const r = Math.random();
-      if (r < profile.gapRate * 0.3) {
-        color = '#2C4B66';
-      } else if (r < profile.gapRate) {
-        color = 'rgba(44,75,102,0.55)';
-        covered++;
+
+      if (sd && Object.keys(sd).length > 0) {
+        const day = sd[ymd];
+        const n = day ? (day.all_n || 0) : 0;
+        if (n === 0) {
+          color = 'rgba(123,138,153,0.32)'; // gris = sin datos
+        } else if (n < 6) {
+          color = 'rgba(44,75,102,0.55)';   // navy semi = parcial
+          covered++;
+        } else {
+          color = '#89B8BC';                // teal-light = completo
+          covered++;
+        }
       } else {
-        color = '#92B294';
-        covered++;
+        // No hay datos cargados todavía → gris (determinista, sin Math.random)
+        color = 'rgba(123,138,153,0.18)';
       }
       rect.setAttribute('fill', color);
       svg.appendChild(rect);
