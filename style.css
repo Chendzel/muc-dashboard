@@ -1216,18 +1216,58 @@
       scroll-snap-align: start;
       scroll-snap-stop: always;
     }
-    /* v1.12: cards del carrusel con altura amplia y overflow visible para que las labels no se corten */
-    .bottom-row .card { overflow: visible; }
-    .delta-card {
-      min-height: 380px;
-      padding: 14px 16px 18px;
-      display: flex;
-      flex-direction: column;
+    /* v1.13: carrusel — abandonar flex stretch interno, usar height auto + alturas explícitas en chart */
+    .bottom-row .card,
+    .bottom-row .delta-card,
+    .bottom-row .heatmap-card,
+    .bottom-row .stats-card {
+      overflow: visible !important;
     }
-    .delta-card .delta-stats { padding-bottom: 4px; }
-    .delta-card .delta-stat .l { font-size: 9px !important; line-height: 1.3; }
-    .heatmap-card { min-height: 400px; padding: 12px 12px 24px; }
-    .stats-card { min-height: 400px; padding: 14px 14px 20px; }
+    .bottom-row .delta-card {
+      display: block !important;
+      min-height: 0 !important;
+      height: auto !important;
+      padding: 14px 16px 16px !important;
+    }
+    .bottom-row .delta-card .delta-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .bottom-row .delta-card .delta-chart {
+      height: 150px !important;
+      min-height: 0 !important;
+      flex: none !important;
+      margin: 6px 0 8px !important;
+    }
+    .bottom-row .delta-card .delta-stats {
+      flex: none !important;
+      margin-top: 6px !important;
+      padding-top: 8px !important;
+      border-top: 1px solid rgba(255,255,255,0.2);
+      display: flex;
+      justify-content: space-between;
+    }
+    .bottom-row .delta-card .delta-stat .v { font-size: 14px; font-weight: 400; }
+    .bottom-row .delta-card .delta-stat .l { font-size: 9px !important; line-height: 1.3; opacity: 0.85; }
+    .bottom-row .heatmap-card {
+      display: block !important;
+      min-height: 0 !important;
+      height: auto !important;
+      padding: 14px 14px 18px !important;
+    }
+    .bottom-row .stats-card {
+      display: block !important;
+      min-height: 0 !important;
+      height: auto !important;
+      padding: 14px 14px 18px !important;
+    }
+    /* Carrusel: flex con align-items stretch para que todos sean la misma altura */
+    .bottom-row {
+      align-items: stretch;
+    }
     /* Mobile: temp column más ancha, viento más estrecha */
     .station-card:not(.s-providencia):has(.isla-metric-col) .sc-body {
       grid-template-columns: 1.4fr 0.85fr 0.85fr 1fr !important;
