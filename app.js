@@ -1035,11 +1035,11 @@ function renderStationCard(cardClass, data) {
     // .sc-metric layout (Providencia/small): .sub.dir under val
     const subDir = card.querySelector('.sc-metric:has(.icon.wind) .sub.dir');
     if (subDir) subDir.textContent = dirText;
-    // Isla layout: lbl contains "Viento · S 180°"
+    // Isla layout: lbl muestra solo direción (sin "Viento · " porque el ícono ya lo indica)
     const islaWindLbl = card.querySelector('.isla-metric-col .icon.wind');
     if (islaWindLbl) {
       const lbl = islaWindLbl.parentElement.querySelector('.lbl');
-      if (lbl) lbl.textContent = 'Viento · ' + dirText;
+      if (lbl) lbl.textContent = dirText;
     }
   }
 

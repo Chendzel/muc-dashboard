@@ -90,9 +90,10 @@
 
   /* ---------- DAILY STRIP — fills its container ---------- */
   .daily-strip {
+    overflow: visible;
     background: var(--navy);
     border-radius: 20px 6px 6px 20px;
-    padding: 8px 28px 8px 22px;
+    padding: 8px 16px 8px 22px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -153,13 +154,14 @@
   .ds-temp-vals { display: flex; flex-direction: column; gap: 2px; }
   .ds-temp-row { display: flex; align-items: baseline; gap: 6px; }
   .ds-temp-row .lbl {
-    font-size: 8px; font-weight: 700; letter-spacing: 0.4px;
-    opacity: 0.7; width: 16px;
+    display: none;
   }
   .ds-temp-row .val {
-    font-size: 11px; font-weight: 500; font-family: 'Helvetica Neue', sans-serif;
+    font-size: 13px; font-weight: 600; font-family: 'Helvetica Neue', sans-serif;
     letter-spacing: -0.3px; line-height: 1; white-space: nowrap;
   }
+  .ds-temp-row.max .val::before { content: '↑'; opacity: 0.6; margin-right: 2px; font-size: 10px; }
+  .ds-temp-row.min .val::before { content: '↓'; opacity: 0.6; margin-right: 2px; font-size: 10px; }
   .ds-temp-row.max .val { color: white; font-weight: 600; text-shadow: 0 0 1px rgba(231,141,112,0.4); }
   .ds-temp-row.min .val { color: var(--teal-pale); }
 
@@ -440,9 +442,10 @@
     grid-template-columns: 1.2fr 0.9fr 0.9fr 1.4fr;
   }
   .s-isla .sc-tag {
-    background: var(--sage); color: white; font-size: 8px;
-    padding: 2px 8px; border-radius: var(--radius-pill); letter-spacing: 1px;
-    font-weight: 700; margin-left: 8px;
+    background: var(--sage); color: white; font-size: 7px;
+    padding: 1px 5px; border-radius: var(--radius-pill); letter-spacing: 0.6px;
+    font-weight: 700; margin-left: 5px;
+    white-space: nowrap;
   }
   .isla-metric-col {
     display: flex; flex-direction: column; gap: 6px;
@@ -1258,4 +1261,48 @@
     .brand-text h1 { font-size: 14px; }
     .ds-conditions { gap: 4px; }
     .ds-condition { transform: scale(0.85); }
+  }
+
+
+  /* Fallback label content using ~ (sibling) for broader browser support — same effect as :has() above */
+  .station-card:not(.s-providencia):not(.s-isla) .sc-metric .icon.hum ~ .val-block::after  { content: "Hum"; }
+  .station-card:not(.s-providencia):not(.s-isla) .sc-metric .icon.rad ~ .val-block::after  { content: "Rad"; }
+  .station-card:not(.s-providencia):not(.s-isla) .sc-metric .icon.wind ~ .val-block::after { content: "Viento"; }
+  .s-providencia .sc-top-row .sc-metric .icon.hum ~ .val-block::after  { content: "Hum"; }
+  .s-providencia .sc-top-row .sc-metric .icon.rad ~ .val-block::after  { content: "Rad"; }
+  .s-providencia .sc-top-row .sc-metric .icon.wind ~ .val-block::after { content: "Viento"; }
+
+
+  /* Mobile-only: heatmap tabs en scroll horizontal + footer visible */
+  @media (max-width: 767px) {
+    .hm-tabs-row {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin: 4px -8px 8px;
+      padding: 0 8px;
+      scrollbar-width: none;
+    }
+    .hm-tabs-row::-webkit-scrollbar { display: none; }
+    .hm-tabs {
+      display: inline-flex; flex-wrap: nowrap;
+      min-width: max-content;
+    }
+    .hm-tab {
+      flex-shrink: 0;
+      font-size: 11px;
+    }
+    /* Footer en mobile: con espacio para que no se pegue al borde */
+    footer.bar {
+      padding-bottom: 24px;
+    }
+    /* Strip mobile: centrar contenido y separar bien */
+    .daily-strip {
+      gap: 6px;
+      padding: 8px 12px;
+    }
+    .ds-ampm { gap: 6px; }
+    .ds-ampm-icon { width: 30px; height: 30px; }
+    .ds-ampm-icon svg { width: 16px; height: 16px; }
+    .ds-condition-icon { width: 26px; height: 26px; }
+    .ds-condition-icon svg { width: 13px; height: 13px; }
   }
