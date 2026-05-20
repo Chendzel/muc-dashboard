@@ -439,7 +439,7 @@
 
   /* ISLA DE MAIPO — rural reference card, gets full width with extra info */
   .s-isla .sc-body {
-    grid-template-columns: 1.2fr 0.9fr 0.9fr 1.4fr;
+    grid-template-columns: 1fr 0.85fr 0.85fr 1.55fr;
   }
   .s-isla .sc-tag {
     background: var(--sage); color: white; font-size: 7px;
@@ -1194,23 +1194,26 @@
     .out-chip .info .name { font-size: 9px; }
     /* Stations: 1 column stack */
     .stations-col {
-      grid-template-columns: 1fr 1fr !important;
-      grid-template-rows: auto auto auto auto auto !important;
-      gap: 8px;
+      grid-template-columns: 1fr !important;
+      grid-template-rows: auto !important;
+      gap: 10px;
     }
-    .station-card.s-providencia {
-      grid-column: 1 / -1 !important;
-      grid-row: 1 !important;
+    .station-card.s-providencia,
+    .station-card.s-stgocentro,
+    .station-card.s-renca,
+    .station-card.s-cerrillos,
+    .station-card.s-sancarlos,
+    .station-card.s-chamisero,
+    .station-card.s-isla {
+      grid-column: 1 !important;
+      grid-row: auto !important;
     }
-    .group-header.urban      { grid-column: 1 !important; grid-row: 2 !important; }
-    .group-header.peripheral { grid-column: 2 !important; grid-row: 2 !important; }
-    .station-card.s-stgocentro { grid-column: 1 !important; grid-row: 3 !important; }
-    .station-card.s-sancarlos  { grid-column: 2 !important; grid-row: 3 !important; }
-    .station-card.s-renca      { grid-column: 1 !important; grid-row: 4 !important; }
-    .station-card.s-chamisero  { grid-column: 2 !important; grid-row: 4 !important; }
-    .station-card.s-cerrillos  { grid-column: 1 !important; grid-row: 5 !important; }
-    .station-card.s-isla       { grid-column: 2 !important; grid-row: 5 !important; }
-    /* Providencia mantiene su top-row pero los charts y la rosa solo si hay espacio */
+    .group-header.urban,
+    .group-header.peripheral {
+      grid-column: 1 !important;
+      grid-row: auto !important;
+    }
+    /* Mobile-only: Providencia mantiene solo top-row (charts + rosa ocultos para no dominar) */
     .s-providencia .sc-chart-multi { display: none; }
     .s-providencia .sc-windrose { display: none; }
     .station-card { padding: 10px 12px; }
@@ -1305,4 +1308,74 @@
     .ds-ampm-icon svg { width: 16px; height: 16px; }
     .ds-condition-icon { width: 26px; height: 26px; }
     .ds-condition-icon svg { width: 13px; height: 13px; }
+  }
+
+
+  /* ============================================================ */
+  /* polish v1.7 — fixes surgical for persistent overflow         */
+  /* ============================================================ */
+
+  /* Fix 1: Stack value + unit vertically in station metrics.
+     Frees horizontal space + creates clean hierarchy (number prominent, unit subtle). */
+  .sc-metric .val,
+  .isla-metric-col .val {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.05;
+    white-space: nowrap;
+  }
+  .sc-metric .val .u,
+  .isla-metric-col .val .u {
+    display: block;
+    font-size: 8px;
+    margin: 2px 0 0 0;
+    opacity: 0.7;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+  }
+  /* In Providencia top-row, give a bit more breathing room since values are bigger */
+  .s-providencia .sc-top-row .sc-metric .val .u {
+    font-size: 9px;
+    margin-top: 3px;
+  }
+  /* Isla card values are bigger; unit proportional */
+  .s-isla .isla-metric-col .val .u {
+    font-size: 11px;
+    margin-top: 2px;
+  }
+
+
+  /* Fix 3: Strip MAX/MIN — hide thermo, tighten ds-temps */
+  .ds-thermo { display: none; }
+  .ds-temps {
+    flex-shrink: 0;
+    margin-left: 4px;
+    gap: 6px;
+  }
+  .ds-temp-row .val {
+    font-size: 12px !important;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+
+  /* Fix 4: Isla wind column — accommodate dir+degrees label */
+  .s-isla .isla-metric-col:has(.icon.wind) .lbl {
+    white-space: nowrap;
+    font-size: 8px;
+    letter-spacing: 0.3px;
+  }
+  .s-isla .isla-metric-col:has(.icon.wind) .val {
+    font-size: 18px;
+  }
+  /* Sibling-selector fallback (browsers sin :has) */
+  .s-isla .isla-metric-col .icon.wind ~ .lbl {
+    white-space: nowrap;
+    font-size: 8px;
+    letter-spacing: 0.3px;
+  }
+  .s-isla .isla-metric-col .icon.wind ~ .val {
+    font-size: 18px;
   }
