@@ -1232,7 +1232,7 @@ function formatTSDate(d) {
 function thingspeakUrlChunk(channelId, readKey, start, end) {
   // average=60 = 1 punto cada hora → 24 puntos/día. Un chunk trimestral = ~90 × 24 = 2160 records (cabe en 8000).
   return 'https://api.thingspeak.com/channels/' + channelId + '/feeds.json?api_key=' + readKey +
-         '&start=' + formatTSDate(start) + '&end=' + formatTSDate(end) + '&average=60';
+         '&start=' + formatTSDate(start) + '&end=' + formatTSDate(end) + '&average=60&results=8000';
 }
 
 async function fetchYearChunk(station, start, end) {
