@@ -92,7 +92,7 @@
   .daily-strip {
     background: var(--navy);
     border-radius: 20px;
-    padding: 8px 22px 8px 22px;
+    padding: 8px 28px 8px 22px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -125,7 +125,7 @@
   .ds-ampm-icon svg { width: 22px; height: 22px; }
 
   .ds-conditions {
-    display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: center; gap: 8px;
     justify-content: center;
   }
   .ds-condition {
@@ -153,12 +153,12 @@
   .ds-temp-vals { display: flex; flex-direction: column; gap: 2px; }
   .ds-temp-row { display: flex; align-items: baseline; gap: 6px; }
   .ds-temp-row .lbl {
-    font-size: 8px; font-weight: 700; letter-spacing: 0.6px;
-    opacity: 0.7; width: 20px;
+    font-size: 8px; font-weight: 700; letter-spacing: 0.4px;
+    opacity: 0.7; width: 16px;
   }
   .ds-temp-row .val {
-    font-size: 14px; font-weight: 400; font-family: 'Helvetica Neue', sans-serif;
-    letter-spacing: -0.3px; line-height: 1;
+    font-size: 12px; font-weight: 500; font-family: 'Helvetica Neue', sans-serif;
+    letter-spacing: -0.3px; line-height: 1; white-space: nowrap;
   }
   .ds-temp-row.max .val { color: white; font-weight: 600; text-shadow: 0 0 1px rgba(231,141,112,0.4); }
   .ds-temp-row.min .val { color: var(--teal-pale); }
@@ -1191,10 +1191,26 @@
     .out-chip .info .name { font-size: 9px; }
     /* Stations: 1 column stack */
     .stations-col {
-      grid-template-columns: 1fr !important;
+      grid-template-columns: 1fr 1fr !important;
+      grid-template-rows: auto;
       gap: 8px;
     }
-    .group-header { grid-column: 1 !important; }
+    .station-card.s-providencia {
+      grid-column: 1 / -1 !important;
+      grid-row: auto !important;
+    }
+    .group-header.urban { grid-column: 1 !important; grid-row: auto !important; }
+    .group-header.peripheral { grid-column: 2 !important; grid-row: auto !important; }
+    .station-card.s-stgocentro,
+    .station-card.s-renca,
+    .station-card.s-cerrillos {
+      grid-column: 1 !important;
+    }
+    .station-card.s-sancarlos,
+    .station-card.s-chamisero,
+    .station-card.s-isla {
+      grid-column: 2 !important;
+    }
     .station-card { padding: 10px 12px; }
     .sc-temp-big { font-size: 24px; }
     .sc-name { font-size: 11px; }
@@ -1202,11 +1218,18 @@
     .s-providencia .sc-top-row { grid-template-columns: 1.2fr 0.9fr 0.9fr 1fr; }
     .s-providencia .sc-chart-multi svg { height: 50px; }
     .sc-windrose svg { max-width: 140px; }
-    /* Bottom row: 1 col stack */
+    /* Bottom row: 1 col stack — todas las cards igualmente visibles */
     .bottom-row {
       grid-template-columns: 1fr !important;
       gap: 10px;
     }
+    .delta-card, .heatmap-card, .stats-card {
+      min-height: auto;
+      width: 100%;
+    }
+    .delta-card { min-height: 240px; }
+    .heatmap-card { min-height: 220px; }
+    .stats-card { min-height: 180px; }
     .delta-card { padding: 12px 14px; }
     .delta-card .delta-big-wrap .big { font-size: 26px; }
     .delta-card .delta-chart { min-height: 110px; }
