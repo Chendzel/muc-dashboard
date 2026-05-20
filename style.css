@@ -92,7 +92,7 @@
   .daily-strip {
     overflow: visible;
     background: var(--navy);
-    border-radius: 20px 6px 6px 20px;
+    border-radius: 14px;
     padding: 8px 16px 8px 22px;
     display: flex;
     align-items: center;
@@ -1185,8 +1185,8 @@
     .ds-season .label { font-size: 16px; }
     .ds-season .date { font-size: 9px; }
     /* Map smaller */
-    .map-card { min-height: 320px; padding: 12px; }
-    .map-card .map-canvas { height: 240px; min-height: 240px; }
+    .map-card { min-height: 460px; padding: 14px; }
+    .map-card .map-canvas { height: 360px; min-height: 360px; }
     .map-header { margin-bottom: 4px; }
     .map-legend { padding: 4px 8px; }
     .legend-bar { width: 60px; }
@@ -1194,6 +1194,7 @@
     .out-chip .info .name { font-size: 9px; }
     /* Stations: 1 column stack */
     .stations-col {
+      display: grid !important;
       grid-template-columns: 1fr !important;
       grid-template-rows: auto !important;
       gap: 10px;
@@ -1204,16 +1205,23 @@
     .station-card.s-cerrillos,
     .station-card.s-sancarlos,
     .station-card.s-chamisero,
-    .station-card.s-isla {
-      grid-column: 1 !important;
-      grid-row: auto !important;
-    }
+    .station-card.s-isla,
     .group-header.urban,
     .group-header.peripheral {
       grid-column: 1 !important;
       grid-row: auto !important;
     }
-    /* Mobile-only: Providencia mantiene solo top-row (charts + rosa ocultos para no dominar) */
+    /* Orden lógico en mobile: Providencia, URBANAS header, sus 3 cards, PERIFÉRICAS header, sus 3 cards */
+    .station-card.s-providencia { order: 1; }
+    .group-header.urban         { order: 2; }
+    .station-card.s-stgocentro  { order: 3; }
+    .station-card.s-renca       { order: 4; }
+    .station-card.s-cerrillos   { order: 5; }
+    .group-header.peripheral    { order: 6; }
+    .station-card.s-sancarlos   { order: 7; }
+    .station-card.s-chamisero   { order: 8; }
+    .station-card.s-isla        { order: 9; }
+    /* Mobile: Providencia compacto sin charts ni rosa */
     .s-providencia .sc-chart-multi { display: none; }
     .s-providencia .sc-windrose { display: none; }
     .station-card { padding: 10px 12px; }
@@ -1232,9 +1240,12 @@
       min-height: auto;
       width: 100%;
     }
-    .delta-card { min-height: 240px; }
-    .heatmap-card { min-height: 220px; }
-    .stats-card { min-height: 180px; }
+    .delta-card { min-height: 260px; }
+    .heatmap-card { min-height: 320px; padding-bottom: 18px; }
+    .stats-card { min-height: 320px; }
+    /* Heatmap tabs siempre visibles dentro de la card en mobile */
+    .heatmap-card .hm-tabs-row { padding: 0 4px; }
+    .heatmap-card .heatmap-grid { padding-bottom: 8px; }
     .delta-card { padding: 12px 14px; }
     .delta-card .delta-big-wrap .big { font-size: 26px; }
     .delta-card .delta-chart { min-height: 110px; }
@@ -1346,8 +1357,7 @@
   }
 
 
-  /* Fix 3: Strip MAX/MIN — hide thermo, tighten ds-temps */
-  .ds-thermo { display: none; }
+  /* Strip layout — bring thermo back small, hide visual noise */
   .ds-temps {
     flex-shrink: 0;
     margin-left: 4px;
@@ -1379,3 +1389,60 @@
   .s-isla .isla-metric-col .icon.wind ~ .val {
     font-size: 18px;
   }
+
+
+  /* ============================================================ */
+  /* v1.8 — Strip aggressive simplification + Isla consistency    */
+  /* ============================================================ */
+
+  /* Strip aggressive simplification v1.8 — hide dividers + condition labels, smaller icons */
+  .ds-divider { display: none !important; }
+  .ds-condition-label { display: none !important; }
+  .ds-conditions { gap: 6px !important; }
+  .ds-condition-icon { width: 26px !important; height: 26px !important; }
+  .ds-condition-icon svg { width: 14px !important; height: 14px !important; }
+  .ds-condition.active .ds-condition-icon {
+    transform: scale(1.18);
+    transition: transform 0.2s ease-out;
+  }
+  .ds-ampm-icon { width: 30px !important; height: 30px !important; }
+  .ds-ampm-icon svg { width: 16px !important; height: 16px !important; }
+  .ds-thermo { display: inline-block !important; width: 18px !important; height: 28px !important; flex-shrink: 0; }
+  .ds-thermo svg { width: 100%; height: 100%; }
+  .ds-temps {
+    flex-shrink: 0;
+    margin-left: 4px;
+    gap: 4px;
+    align-items: center;
+  }
+  .ds-temp-row .val {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    white-space: nowrap;
+  }
+  .daily-strip {
+    padding: 8px 16px !important;
+    gap: 8px !important;
+  }
+
+  /* Isla card consistency v1.8 — hide HTML .lbl divs, use CSS labels like other stations */
+  .s-isla .isla-metric-col .lbl { display: none; }
+  .s-isla .isla-metric-col {
+    position: relative;
+    padding-bottom: 14px;
+  }
+  .s-isla .isla-metric-col::after {
+    content: "";
+    position: absolute;
+    bottom: -4px; left: 0; right: 0;
+    text-align: center;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.4px;
+    color: var(--text-mute); text-transform: uppercase;
+    line-height: 1;
+  }
+  .s-isla .isla-metric-col:has(.icon.hum)::after  { content: "Hum"; }
+  .s-isla .isla-metric-col:has(.icon.rad)::after  { content: "Rad"; }
+  .s-isla .isla-metric-col:has(.icon.wind)::after { content: "Viento"; }
+  /* Fallback con sibling selector */
+  .s-isla .isla-metric-col .icon.hum  ~ .val::after  { content: ""; }
+  .s-isla .isla-metric-col .icon.wind ~ .val::after  { content: ""; }
