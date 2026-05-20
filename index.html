@@ -102,9 +102,9 @@
             <div class="card-subtitle">Región Metropolitana · Temperatura actual</div>
           </div>
           <div class="map-legend">
-            <span class="legend-label">8°</span>
+            <span class="legend-label">0°</span>
             <div class="legend-bar"></div>
-            <span class="legend-label">32°</span>
+            <span class="legend-label">35°</span>
           </div>
         </div>
         <div class="out-stations">
@@ -202,7 +202,7 @@
                   <span class="sc-temp-trend up">↑1.2°</span>
                 </div>
                 <div class="sc-range-block">
-                  <div class="sc-range-ends"><span>8°</span><span>32°</span></div>
+                  <div class="sc-range-ends"><span>0°</span><span>35°</span></div>
                   <div class="sc-range-track">
                     <div class="sc-range-fill" style="left:25.0%; width:50.0%;"></div>
                     <div class="sc-range-pin" style="left:58.3%;"></div>
@@ -307,7 +307,7 @@
                 <span class="sc-temp-trend up">↑0.3°</span>
               </div>
               <div class="sc-range-block">
-                <div class="sc-range-ends"><span>8°</span><span>32°</span></div>
+                <div class="sc-range-ends"><span>0°</span><span>35°</span></div>
                 <div class="sc-range-track">
                   <div class="sc-range-fill" style="left:12.5%; width:50.0%;"></div>
                   <div class="sc-range-pin" style="left:45.8%;"></div>
@@ -359,7 +359,7 @@
                 <span class="sc-temp-trend up">↑1.4°</span>
               </div>
               <div class="sc-range-block">
-                <div class="sc-range-ends"><span>8°</span><span>32°</span></div>
+                <div class="sc-range-ends"><span>0°</span><span>35°</span></div>
                 <div class="sc-range-track">
                   <div class="sc-range-fill" style="left:29.2%; width:50.0%;"></div>
                   <div class="sc-range-pin" style="left:62.5%;"></div>
@@ -411,7 +411,7 @@
                 <span class="sc-temp-trend up">↑1.6°</span>
               </div>
               <div class="sc-range-block">
-                <div class="sc-range-ends"><span>8°</span><span>32°</span></div>
+                <div class="sc-range-ends"><span>0°</span><span>35°</span></div>
                 <div class="sc-range-track">
                   <div class="sc-range-fill" style="left:33.3%; width:50.0%;"></div>
                   <div class="sc-range-pin" style="left:66.7%;"></div>
@@ -463,7 +463,7 @@
                 <span class="sc-temp-trend up">↑0.4°</span>
               </div>
               <div class="sc-range-block">
-                <div class="sc-range-ends"><span>8°</span><span>32°</span></div>
+                <div class="sc-range-ends"><span>0°</span><span>35°</span></div>
                 <div class="sc-range-track">
                   <div class="sc-range-fill" style="left:16.7%; width:50.0%;"></div>
                   <div class="sc-range-pin" style="left:50.0%;"></div>
@@ -515,7 +515,7 @@
                 <span class="sc-temp-trend up">↑1.8°</span>
               </div>
               <div class="sc-range-block">
-                <div class="sc-range-ends"><span>8°</span><span>32°</span></div>
+                <div class="sc-range-ends"><span>0°</span><span>35°</span></div>
                 <div class="sc-range-track">
                   <div class="sc-range-fill" style="left:37.5%; width:50.0%;"></div>
                   <div class="sc-range-pin" style="left:70.8%;"></div>
@@ -570,7 +570,7 @@
                 <span class="sc-temp-trend up">↑0.6°</span>
               </div>
               <div class="sc-range-block">
-                <div class="sc-range-ends"><span>8°</span><span>32°</span></div>
+                <div class="sc-range-ends"><span>0°</span><span>35°</span></div>
                 <div class="sc-range-track">
                   <div class="sc-range-fill" style="left:4.2%; width:54.2%;"></div>
                   <div class="sc-range-pin" style="left:37.5%;"></div>
@@ -616,26 +616,24 @@
     <!-- BOTTOM ROW -->
     <div class="bottom-row">
       <div class="card delta-card">
-        <div class="card-label" style="color:rgba(255,255,255,0.75);">Δ Urbano · Rural</div>
-        <div class="card-subtitle" style="color:rgba(255,255,255,0.65); margin-bottom: 8px;" id="delta-subtitle">Promedio 4 urbanas − Isla de Maipo</div>
-        <div class="big" id="delta-big">+4.5°C</div>
-        <div class="sub" id="delta-sub">vs. Isla de Maipo</div>
+        <div class="delta-header">
+          <div class="delta-big-wrap">
+            <div class="big" id="delta-big">+4.5°C</div>
+            <div class="sub" id="delta-sub">vs. Isla de Maipo</div>
+          </div>
+          <div class="delta-titles">
+            <div class="card-label" style="color:rgba(255,255,255,0.75);">Δ Urbano · Rural</div>
+            <div class="card-subtitle" style="color:rgba(255,255,255,0.65);" id="delta-subtitle">Promedio 4 urbanas − Isla de Maipo</div>
+          </div>
+        </div>
         <div class="delta-chart">
-          <svg viewBox="0 0 280 70" preserveAspectRatio="none">
+          <svg viewBox="0 0 280 96" preserveAspectRatio="none">
             <defs>
               <linearGradient id="dg" x1="0%" y1="0%" x2="0%" y2="100%">
                 <stop offset="0%" stop-color="rgba(255,255,255,0.5)"/>
                 <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
               </linearGradient>
             </defs>
-            <g stroke="rgba(255,255,255,0.18)" stroke-width="0.5" stroke-dasharray="2 3">
-              <line x1="0" y1="20" x2="280" y2="20"/>
-              <line x1="0" y1="40" x2="280" y2="40"/>
-              <line x1="0" y1="60" x2="280" y2="60"/>
-            </g>
-            <text x="3" y="18" font-size="8" fill="rgba(255,255,255,0.55)" font-weight="700">+8°</text>
-            <text x="3" y="38" font-size="8" fill="rgba(255,255,255,0.55)" font-weight="700">+4°</text>
-            <text x="3" y="58" font-size="8" fill="rgba(255,255,255,0.55)" font-weight="700">0°</text>
             <g id="delta-chart-paths"></g>
           </svg>
         </div>

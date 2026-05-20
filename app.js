@@ -585,7 +585,7 @@ function applyComputedSeasons() {
 
 const CONDITION_ICONS = {
   'soleado':  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4" fill="currentColor" fill-opacity="0.25"/><line x1="12" y1="3" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="21"/><line x1="3" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="21" y2="12"/><line x1="5.5" y1="5.5" x2="7" y2="7"/><line x1="17" y1="17" x2="18.5" y2="18.5"/><line x1="5.5" y1="18.5" x2="7" y2="17"/><line x1="17" y1="7" x2="18.5" y2="5.5"/></svg>',
-  'parcial':  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="8" r="3"/><path d="M5,18 a3.5,3.5 0 0 1 0,-7 a4.5,4.5 0 0 1 9,0 a3.5,3.5 0 0 1 0,7 Z"/></svg>',
+  'parcial':  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="16" cy="7" r="3.5" fill="currentColor" fill-opacity="0.6"/><line x1="16" y1="1" x2="16" y2="3"/><line x1="22" y1="7" x2="23" y2="7"/><line x1="20" y1="3" x2="21" y2="2"/><line x1="20" y1="11" x2="21" y2="12"/><path d="M3,19 a3.5,3.5 0 0 1 0,-7 a4.5,4.5 0 0 1 9,0 a3.5,3.5 0 0 1 0,7 Z" fill="currentColor" fill-opacity="0.3"/></svg>',
   'nublado':  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6,18 a4,4 0 0 1 0,-8 a5,5 0 0 1 10,0 a4,4 0 0 1 0,8 Z" fill="currentColor" fill-opacity="0.18"/></svg>',
   'niebla':   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="9" x2="21" y2="9"/><line x1="5" y1="13" x2="19" y2="13"/><line x1="3" y1="17" x2="17" y2="17"/></svg>',
   'ola-calor':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="10" r="2.5" fill="currentColor" fill-opacity="0.4"/><line x1="9" y1="3" x2="9" y2="5"/><line x1="3" y1="10" x2="5" y2="10"/><line x1="13" y1="10" x2="15" y2="10"/><path d="M19 6 v10 a2,2 0 0 1 -4,0 v-10 Z" fill="currentColor" fill-opacity="0.6"/></svg>',
@@ -597,11 +597,17 @@ function setStationConditionIcon(card, cond) {
   if (!el) {
     el = document.createElement('div');
     el.className = 'sc-cond';
-    const name = card.querySelector('.sc-name');
-    if (name && name.parentNode) name.parentNode.insertBefore(el, name);
+    const header = card.querySelector('.sc-header');
+    if (!header) { console.warn('[cond] no .sc-header in card', card); return; }
+    header.insertBefore(el, header.firstChild);
   }
-  if (!cond) { el.style.visibility = 'hidden'; return; }
-  el.style.visibility = '';
+  if (!cond) {
+    el.dataset.cond = 'none';
+    el.innerHTML = '';
+    el.style.opacity = '0.3';
+    return;
+  }
+  el.style.opacity = '1';
   el.dataset.cond = cond;
   el.innerHTML = CONDITION_ICONS[cond] || '';
 }
@@ -674,8 +680,8 @@ function renderDeltaChart() {
   const islaHist = LATEST_HISTORY['isla-maipo'];
   if (!islaHist || islaHist.error) { g.innerHTML = ''; return; }
 
-  // Compute series of hourly deltas (up to 24 points)
-  let series = []; // [{hour, delta}]
+  // Build series of hourly deltas (station|avg - isla) up to 24 points
+  let series = [];
   if (stationKey === '__avg') {
     const urbanIds = ['providencia', 'stgo-centro', 'renca', 'cerrillos'];
     for (let i = 0; i < 24; i++) {
@@ -701,29 +707,78 @@ function renderDeltaChart() {
   }
   if (series.length < 2) { g.innerHTML = ''; return; }
 
-  // Chart geometry (matches existing viewBox 0 0 280 70)
-  const W = 280, H = 70;
-  const yMin = 0, yMax = 8;  // grid is at +0/+4/+8 in the existing HTML
-  const yScale = v => H - 10 - ((v - yMin) / (yMax - yMin)) * (H - 20);
-  const xScale = i => (i / 23) * (W - 10) + 5;
+  // Chart geometry
+  const W = 280, H = 96;
+  const padL = 26, padR = 10, padT = 4, padB = 14;
 
-  let line = '', area = '';
+  // Auto-scale Y to actual data range, with both negative and positive shown if applicable
+  const vals = series.map(p => p.delta);
+  let dataMin = Math.min(...vals);
+  let dataMax = Math.max(...vals);
+  // Round outward to nearest 2 for clean grid
+  let yMin = Math.floor(dataMin / 2) * 2;
+  let yMax = Math.ceil(dataMax / 2) * 2;
+  // Ensure both sides visible if data crosses 0
+  if (dataMin < 0 && yMin > -2) yMin = -2;
+  if (dataMax > 0 && yMax < 2) yMax = 2;
+  // Guarantee min span of 4°
+  if (yMax - yMin < 4) yMax = yMin + 4;
+
+  const yScale = v => padT + (1 - (v - yMin) / (yMax - yMin)) * (H - padT - padB);
+  const xScale = i => padL + (i / 23) * (W - padL - padR);
+
+  // Build line + area paths
+  let line = '', firstX = null, lastX = null;
   series.forEach((p, idx) => {
     const x = xScale(p.i), y = yScale(p.delta);
     line += (idx === 0 ? 'M' : ' L') + x.toFixed(1) + ',' + y.toFixed(1);
+    if (firstX === null) firstX = x;
+    lastX = x;
   });
-  const first = series[0], last = series[series.length - 1];
-  area = line + ' L' + xScale(last.i).toFixed(1) + ',' + H + ' L' + xScale(first.i).toFixed(1) + ',' + H + ' Z';
+  const zeroY = yScale(0);
+  const baselineY = (yMin >= 0) ? H - padB : zeroY;
+  const area = line + ' L' + lastX.toFixed(1) + ',' + baselineY.toFixed(1) +
+               ' L' + firstX.toFixed(1) + ',' + baselineY.toFixed(1) + ' Z';
 
-  // Marker on last point ("ahora")
+  // Generate gridlines + Y labels: solo 0, min, max
+  let gridSVG = '';
+  const yTicks = new Set([yMin, yMax]);
+  if (yMin < 0 && yMax > 0) yTicks.add(0);
+  Array.from(yTicks).sort((a,b)=>a-b).forEach(v => {
+    const y = yScale(v);
+    const isZero = (v === 0);
+    gridSVG += '<line x1="' + padL + '" y1="' + y.toFixed(1) +
+               '" x2="' + (W - padR) + '" y2="' + y.toFixed(1) +
+               '" stroke="rgba(255,255,255,' + (isZero ? '0.5' : '0.25') +
+               ')" stroke-width="' + (isZero ? '1' : '0.5') +
+               '" stroke-dasharray="' + (isZero ? '0' : '2 3') + '"/>';
+    const label = (v > 0 ? '+' : '') + v + '°';
+    gridSVG += '<text x="' + (padL - 5) + '" y="' + (y + 3).toFixed(1) +
+               '" font-size="10" fill="white" font-weight="700" text-anchor="end" opacity="0.9">' +
+               label + '</text>';
+  });
+  // X axis labels: 00, 06, 12, 18 (24h)
+  const xLabels = [0, 6, 12, 18];
+  const xLabelY = H - 1;
+  xLabels.forEach(h => {
+    const x = xScale(h);
+    gridSVG += '<text x="' + x.toFixed(1) + '" y="' + xLabelY +
+               '" font-size="9" fill="rgba(255,255,255,0.65)" font-weight="600" text-anchor="middle">' +
+               String(h).padStart(2,'0') + 'h</text>';
+  });
+
+  // Current point marker
+  const last = series[series.length - 1];
   const lx = xScale(last.i).toFixed(1);
   const ly = yScale(last.delta).toFixed(1);
 
   g.innerHTML =
+    gridSVG +
     '<path d="' + area + '" fill="url(#dg)"/>' +
     '<path d="' + line + '" stroke="white" stroke-width="2" fill="none" stroke-linejoin="round"/>' +
-    '<circle cx="' + lx + '" cy="' + ly + '" r="3" fill="white"/>' +
-    '<line x1="' + lx + '" y1="0" x2="' + lx + '" y2="' + H + '" stroke="white" stroke-width="0.5" stroke-dasharray="2 2" opacity="0.5"/>';
+    '<circle cx="' + lx + '" cy="' + ly + '" r="3.5" fill="white"/>' +
+    '<line x1="' + lx + '" y1="' + padT + '" x2="' + lx + '" y2="' + (H - padB) +
+    '" stroke="white" stroke-width="0.5" stroke-dasharray="2 2" opacity="0.5"/>';
 }
 
 function recomputeStationDeltas() {
@@ -944,7 +999,7 @@ function renderStationCard(cardClass, data) {
   if (data.temp != null) {
     const pin = card.querySelector('.sc-range-pin');
     if (pin) {
-      const pct = Math.max(0, Math.min(100, ((data.temp - 8) / (32 - 8)) * 100));
+      const pct = Math.max(0, Math.min(100, ((data.temp - 0) / (35 - 0)) * 100));
       pin.style.left = pct.toFixed(1) + '%';
     }
   }
@@ -1021,7 +1076,7 @@ function updateMapPins(all) {
       pin.style.background = '#B0B9C2';
       pin.style.opacity = '0.55';
     } else {
-      pin.style.background = tempColor(data.temp, 8, 32);
+      pin.style.background = tempColor(data.temp, 0, 35);
       pin.style.opacity = '1';
     }
   });
@@ -1031,7 +1086,7 @@ function updateMapPins(all) {
   if (islaChip && isla && !isla.error && isla.temp != null) {
     const stale = !isla.timestamp || (Date.now() - isla.timestamp) / 60000 > 60;
     islaChip.textContent = Math.round(isla.temp) + '°';
-    islaChip.style.background = stale ? '#B0B9C2' : tempColor(isla.temp, 8, 32);
+    islaChip.style.background = stale ? '#B0B9C2' : tempColor(isla.temp, 0, 35);
     islaChip.style.opacity = stale ? '0.55' : '1';
   }
 }
@@ -1066,6 +1121,9 @@ async function updateAll() {
   // Store + recompute Δ Urbano-Rural with real data
   LATEST_CURRENT = all;
   recomputeStationDeltas();
+  // Iconos de condición por estación (independiente de Isla)
+  applyStationConditions(all);
+  console.log('[cond] applyStationConditions ran on', Object.keys(all).length, 'stations');
 
   // Condition detection + season banner
   setActiveCondition(detectNetworkCondition(all));
@@ -1200,7 +1258,7 @@ async function fetchAllHistory() {
 
 function renderRangeBar(card, h) {
   if (!h || h.minTemp == null || h.maxTemp == null) return;
-  const SCALE_MIN = 8, SCALE_MAX = 32, range = SCALE_MAX - SCALE_MIN;
+  const SCALE_MIN = 0, SCALE_MAX = 35, range = SCALE_MAX - SCALE_MIN;
   const minPct = Math.max(0, Math.min(100, ((h.minTemp - SCALE_MIN) / range) * 100));
   const maxPct = Math.max(0, Math.min(100, ((h.maxTemp - SCALE_MIN) / range) * 100));
   const fill = card.querySelector('.sc-range-fill');
