@@ -92,7 +92,7 @@
   .daily-strip {
     background: var(--navy);
     border-radius: var(--radius-pill);
-    padding: 8px 30px 8px 22px;
+    padding: 8px 48px 8px 22px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -153,8 +153,8 @@
   .ds-temp-vals { display: flex; flex-direction: column; gap: 2px; }
   .ds-temp-row { display: flex; align-items: baseline; gap: 6px; }
   .ds-temp-row .lbl {
-    font-size: 8px; font-weight: 700; letter-spacing: 0.8px;
-    opacity: 0.7; width: 22px;
+    font-size: 8px; font-weight: 700; letter-spacing: 0.6px;
+    opacity: 0.7; width: 20px;
   }
   .ds-temp-row .val {
     font-size: 14px; font-weight: 400; font-family: 'Helvetica Neue', sans-serif;
