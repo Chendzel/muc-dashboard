@@ -290,7 +290,7 @@ function updateNetStatus(offlineList = []) {
       renca: 'Renca', cerrillos: 'Cerrillos', sancarlos: 'San Carlos',
       chamisero: 'Chamisero', isla: 'Isla de Maipo'
     }[k] || k)).join(' · ');
-    off.textContent = '· ' + names + (offlineList.length === 1 ? ' offline' : ' offline');
+    off.textContent = names + ' offline';
   }
 }
 updateNetStatus([]); // por defecto todas activas; cambiará desde fetchAllStations en Phase 2B
@@ -1067,7 +1067,8 @@ function updateMapPins(all) {
     'RENCA':        'renca',
     'CERRILLOS':    'cerrillos',
     'CHAMISERO':    'chamisero',
-    'SAN CARLOS':   'san-carlos'
+    'SAN CARLOS':   'san-carlos',
+    'ISLA DE MAIPO': 'isla-maipo'
   };
   document.querySelectorAll('.station-marker').forEach(m => {
     const lblEl = m.querySelector('.label');
