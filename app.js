@@ -1060,46 +1060,9 @@ function renderStationCard(cardClass, data) {
   }
 }
 
-// Update map pins (only stations whose markers carry a stable identifier in HTML)
+// Update map pins — v1.36: delegado al mapa Leaflet (mapa.js)
 function updateMapPins(all) {
-  const pinByLabel = {
-    'STGO. CENTRO': 'stgo-centro',
-    'RENCA':        'renca',
-    'CERRILLOS':    'cerrillos',
-    'CHAMISERO':    'chamisero',
-    'SAN CARLOS':   'san-carlos',
-    'ISLA DE MAIPO': 'isla-maipo'
-  };
-  document.querySelectorAll('.station-marker').forEach(m => {
-    const lblEl = m.querySelector('.label');
-    if (!lblEl) return;
-    const txt = lblEl.textContent.replace('★ ', '').trim().toUpperCase();
-    let stationId = pinByLabel[txt];
-    if (!stationId && txt.includes('PROVIDENCIA')) stationId = 'providencia';
-    if (!stationId) return;
-    const data = all[stationId];
-    if (!data || data.error || data.temp == null) return;
-    const pin = m.querySelector('.pin');
-    if (!pin) return;
-    const stale = !data.timestamp || (Date.now() - data.timestamp) / 60000 > 60;
-    pin.textContent = Math.round(data.temp) + '°';
-    if (stale) {
-      pin.style.background = '#B0B9C2';
-      pin.style.opacity = '0.55';
-    } else {
-      pin.style.background = tempColor(data.temp, 0, 35);
-      pin.style.opacity = '1';
-    }
-  });
-  // Isla off-chip in map
-  const islaChip = document.querySelector('.out-chip .dot');
-  const isla = all['isla-maipo'];
-  if (islaChip && isla && !isla.error && isla.temp != null) {
-    const stale = !isla.timestamp || (Date.now() - isla.timestamp) / 60000 > 60;
-    islaChip.textContent = Math.round(isla.temp) + '°';
-    islaChip.style.background = stale ? '#B0B9C2' : tempColor(isla.temp, 0, 35);
-    islaChip.style.opacity = stale ? '0.55' : '1';
-  }
+  if (window.MUCMAP) MUCMAP.updatePins(all);
 }
 
 async function updateAll() {
