@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>MUC — Microclimas Urbanos y Confort</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="libs/leaflet/leaflet.css">
 </head>
 <body>
 
@@ -27,6 +28,10 @@
         </div>
       </div>
       <div class="status-cluster">
+        <nav class="site-nav" aria-label="Secciones">
+          <a href="index.html" class="site-nav-link active" aria-current="page">En vivo</a>
+          <a href="explorar.html" class="site-nav-link">Explorar datos</a>
+        </nav>
         <div class="net-pill" id="netPill">
           <div class="pulse"></div>
           <span id="netPillText">7/7 Estaciones activas</span>
@@ -112,34 +117,8 @@
           </div>
         </div>
         <div class="map-canvas">
-          <div class="station-marker" style="top:24.25%; left:42.97%;">
-            <div class="pin" style="background:#E78D70;">23°</div>
-            <div class="label">RENCA</div>
-          </div>
-          <div class="station-marker label-left" style="top:38.5%; left:51.5%;">
-            <div class="pin" style="background:#E78D70;">24°</div>
-            <div class="label">STGO. CENTRO</div>
-          </div>
-          <div class="station-marker star label-right" style="top:29.45%; left:58.03%;">
-            <div class="pin" style="background:#E78D70;">22°</div>
-            <div class="label">★ PROVIDENCIA</div>
-          </div>
-          <div class="station-marker" style="top:25.55%; left:79.73%;">
-            <div class="pin" style="background:#F8BC7E;">20°</div>
-            <div class="label">SAN CARLOS</div>
-          </div>
-          <div class="station-marker" style="top:43.67%; left:37.92%;">
-            <div class="pin" style="background:#E78D70;">25°</div>
-            <div class="label">CERRILLOS</div>
-          </div>
-          <div class="station-marker" style="top:5.68%; left:49.83%;">
-            <div class="pin" style="background:#F8BC7E;">19°</div>
-            <div class="label">CHAMISERO</div>
-          </div>
-          <div class="station-marker rural label-above" style="top:94%; left:6%;">
-            <div class="pin" style="background:#89B8BC;">8°</div>
-            <div class="label">★ ISLA DE MAIPO</div>
-          </div>
+          <!-- v1.36: mapa Leaflet navegable (OpenStreetMap/CARTO) + perfiles de comunas RM -->
+          <div id="livemap" aria-label="Mapa navegable de la red de estaciones"></div>
         </div>
       </div>
       </div><!-- end map-column -->
@@ -723,7 +702,7 @@
       <div class="footer-text">
         Pontificia Universidad Católica de Chile · Magíster en Arquitectura Sustentable y Energía
         <span class="fondecyt-num">FONDECYT Nº 1241886</span>
-        <span class="dashboard-version">v1.23 · 2026-05-22 · pill grande inline</span>
+        <span class="dashboard-version">v1.36 · 2026-08-18 · mapa Leaflet navegable + comunas</span>
       </div>
       <div class="footer-logos">
         <div class="footer-logo geaf"></div>
@@ -736,8 +715,10 @@
   </div>
 </div>
 
+<script src="libs/leaflet/leaflet.js"></script>
 <script src="data.js"></script>
 <script src="app.js"></script>
+<script src="mapa.js"></script>
 
 </body>
 </html>
