@@ -41,9 +41,16 @@
   map.attributionControl.setPrefix(false);
 
   // ---- Capas base ----
-  const claro = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '© OpenStreetMap · © CARTO', subdomains: 'abcd', maxZoom: 19
-  });
+  // v1.37: CARTO empezó a exigir API key en dominios publicados → capa clara
+  // de Esri (Light Gray Canvas base + labels), gratuita y sin key.
+  const claro = L.layerGroup([
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+      attribution: '© Esri · © OpenStreetMap', maxNativeZoom: 16, maxZoom: 17
+    }),
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+      maxNativeZoom: 16, maxZoom: 17
+    })
+  ]);
   const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap', maxZoom: 19
   });
