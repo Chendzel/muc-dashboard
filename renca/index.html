@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Estación Renca — MUC Microclimas Urbanos y Confort</title>
+<meta name="description" content="Monitoreo en vivo e histórico de la estación meteorológica de Renca (Santiago de Chile) comparada con la referencia rural de Isla de Maipo. Proyecto MUC · GEAF UC · FONDECYT Nº 1241886.">
+<meta property="og:title" content="Estación Renca · Microclimas Urbanos y Confort">
+<meta property="og:description" content="Isla de calor urbana en Renca, en vivo y día a día: temperatura, humedad, radiación y viento comparados con la referencia rural de Isla de Maipo.">
+<meta property="og:type" content="website">
+<link rel="stylesheet" href="../libs/leaflet/leaflet.css">
+<link rel="stylesheet" href="renca.css">
+</head>
+<body>
+
+<div class="board-wrap">
+  <div class="board" id="board">
+
+    <!-- ======= HEADER ======= -->
+    <header class="rb-header">
+      <div class="brand">
+        <div class="logo-geaf"></div>
+        <div class="logo-muc"></div>
+        <div class="brand-text">
+          <h1>Estación Renca</h1>
+          <p>Microclimas Urbanos y Confort · Santiago de Chile</p>
+          <div class="fondecyt">GEAF UC · FONDECYT Nº 1241886</div>
+        </div>
+      </div>
+      <div class="head-right">
+        <div class="live-pill" id="livePill" data-status="ok">
+          <span class="pulse"></span>
+          <span id="livePillText">EN VIVO</span>
+        </div>
+        <div class="clock">
+          <div class="time" id="clockTime">--:--</div>
+          <div class="date" id="clockDate">—</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ======= GRID PRINCIPAL ======= -->
+    <main class="rb-grid">
+
+      <!-- A1 · Ahora -->
+      <section class="card now-card">
+        <div class="card-kicker"><span>Ahora · Renca</span><span class="status" id="rncStatus">—</span></div>
+        <div class="now-temp"><span id="rncTemp">—</span><span class="trend" id="rncTrend"></span></div>
+        <div class="now-range">
+          <span class="nr-num" id="rncMin">—</span>
+          <div class="nr-bar"><div class="nr-fill" id="rncRangeFill"></div><div class="nr-pin" id="rncRangePin"></div></div>
+          <span class="nr-num" id="rncMax">—</span>
+        </div>
+        <div class="nr-caption">rango de hoy · escala 0–35°</div>
+        <div class="now-metrics">
+          <div class="nm"><span class="nm-v" id="rncHum">—</span><span class="nm-l">Humedad %</span></div>
+          <div class="nm"><span class="nm-v" id="rncRad">—</span><span class="nm-l">Radiación W/m²</span></div>
+          <div class="nm"><span class="nm-v" id="rncWind">—</span><span class="nm-l">Viento m/s</span></div>
+          <div class="nm"><span class="nm-v" id="rncDir">—</span><span class="nm-l">Dirección</span></div>
+        </div>
+      </section>
+
+      <!-- A2 · Panel de curvas con pestañas -->
+      <section class="card chart-card">
+        <div class="chart-head">
+          <div class="tabs" role="tablist">
+            <button class="tab active" data-tab="hoy" role="tab">Hoy</button>
+            <button class="tab" data-tab="dia" role="tab">Un día</button>
+            <button class="tab" data-tab="mes" role="tab">Mes</button>
+          </div>
+          <div class="chart-controls">
+            <div class="date-nav" id="ctlDia" hidden>
+              <button class="date-arrow" id="diaPrev" aria-label="Día anterior">‹</button>
+              <input type="date" id="diaInput" class="date-input">
+              <button class="date-arrow" id="diaNext" aria-label="Día siguiente">›</button>
+            </div>
+            <select id="ctlMes" class="select" hidden></select>
+          </div>
+        </div>
+        <div class="chart-title-row">
+          <span class="ct-title" id="chartTitle">—</span>
+          <span class="ct-legend">
+            <span class="lg-item"><span class="lg-swatch renca"></span>Renca</span>
+            <span class="lg-item"><span class="lg-swatch isla"></span>Isla de Maipo</span>
+          </span>
+        </div>
+        <div class="chart-host" id="mainChart"></div>
+        <div class="chart-stats" id="chartStats"></div>
+      </section>
+
+      <!-- A3 · Δ + referencia -->
+      <div class="col-right">
+        <section class="card delta-card">
+          <div class="card-kicker dark"><span>Δ Urbano − Rural</span><span class="sub">ahora</span></div>
+          <div class="delta-big" id="deltaNow">—</div>
+          <p class="delta-sub">Renca comparada con la referencia rural de Isla de Maipo, en este momento.</p>
+          <div class="delta-row">
+            <div class="dr"><span class="dr-v" id="deltaAvgHoy">—</span><span class="dr-l">Prom hoy</span></div>
+            <div class="dr"><span class="dr-v" id="deltaMaxHoy">—</span><span class="dr-l" id="deltaMaxHoyLbl">Máx hoy</span></div>
+          </div>
+        </section>
+        <section class="card isla-card">
+          <div class="card-kicker"><span>★ Isla de Maipo</span><span class="status" id="islStatus">—</span></div>
+          <div class="isla-row">
+            <div class="isla-temp" id="islTemp">—</div>
+            <div class="isla-metrics">
+              <div class="nm"><span class="nm-v" id="islHum">—</span><span class="nm-l">HR %</span></div>
+              <div class="nm"><span class="nm-v" id="islRad">—</span><span class="nm-l">Rad</span></div>
+              <div class="nm"><span class="nm-v" id="islWind">—</span><span class="nm-l">Viento</span></div>
+            </div>
+          </div>
+          <p class="isla-note">Referencia rural · 45 km al suroeste</p>
+        </section>
+      </div>
+
+      <!-- B1 · Calendario anual + récords -->
+      <section class="card cal-card">
+        <div class="card-kicker">
+          <span>El año, día a día · Δ diario Renca − Isla</span>
+          <span class="cal-head-right">
+            <select id="anioSelect" class="select slim"></select>
+            <span class="cal-legend"><span>−5°</span><span class="cal-legend-bar"></span><span>+5°</span></span>
+          </span>
+        </div>
+        <div class="cal-body">
+          <div class="cal-main">
+            <div class="cal-months" id="calMonths"></div>
+            <div class="cal-grid" id="calGrid"></div>
+            <div class="cal-caption">Cada celda es un día · rojo = Renca más calurosa que el campo · azul = más fría · clic en un día para explorarlo</div>
+          </div>
+          <div class="cal-records">
+            <div class="rec-card rec-delta">
+              <div class="rec-kicker">Mayor Δ del año</div>
+              <div class="rec-val" id="recDelta">—</div>
+              <div class="rec-date" id="recDeltaDate">—</div>
+            </div>
+            <div class="rec-card rec-hot">
+              <div class="rec-kicker">Día más caluroso</div>
+              <div class="rec-val" id="recHot">—</div>
+              <div class="rec-date" id="recHotDate">—</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- B3 · Mapa -->
+      <section class="card map-card">
+        <div id="miniMap" aria-label="Mapa de Renca e Isla de Maipo"></div>
+        <div class="map-badge" id="mapBadge">Δ ahora <strong id="mapBadgeVal">—</strong></div>
+      </section>
+
+    </main>
+
+    <!-- ======= FOOTER ======= -->
+    <footer class="rb-footer">
+      <span>MUC · GEAF UC · Pontificia Universidad Católica de Chile · FONDECYT Nº 1241886</span>
+      <span class="version">Renca v2.0 · 2026-10-20 · dashboard una pantalla</span>
+    </footer>
+
+  </div>
+</div>
+
+<script src="../libs/leaflet/leaflet.js"></script>
+<script src="renca.js"></script>
+</body>
+</html>
