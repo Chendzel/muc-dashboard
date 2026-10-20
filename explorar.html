@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Explorar datos — MUC Microclimas Urbanos y Confort</title>
+<link rel="stylesheet" href="explorar.css">
+</head>
+<body>
+
+<div class="page">
+
+  <!-- HEADER -->
+  <header class="exp-header">
+    <a class="brand" href="index.html" title="Volver al dashboard en vivo">
+      <div class="logo-geaf"></div>
+      <div class="logo-muc"></div>
+      <div class="brand-text">
+        <h1>Microclimas Urbanos y Confort</h1>
+        <p>Red de monitoreo · Santiago de Chile</p>
+      </div>
+    </a>
+    <nav class="site-nav" aria-label="Secciones">
+      <a href="index.html" class="site-nav-link">En vivo</a>
+      <a href="explorar.html" class="site-nav-link active" aria-current="page">Explorar datos</a>
+    </nav>
+  </header>
+
+  <p class="exp-intro">Histórico completo de la red — <span id="introRange">cargando…</span>.
+  Elegí un día para ver sus condiciones hora a hora, compará dos fechas o hacé consultas sobre todo el período.</p>
+
+  <!-- ============ SECCIÓN 1 · EXPLORAR UN DÍA ============ -->
+  <section class="exp-section" id="seccion-dia">
+    <div class="section-head">
+      <span class="section-kicker">01 · Día por día</span>
+      <h2>Explorar un día</h2>
+    </div>
+
+    <div class="day-toolbar">
+      <div class="date-nav">
+        <button class="date-arrow" id="diaPrev" aria-label="Día anterior">‹</button>
+        <input type="date" id="diaInput" class="date-input">
+        <button class="date-arrow" id="diaNext" aria-label="Día siguiente">›</button>
+      </div>
+      <div class="date-quick">
+        <button class="chip" data-quick="hoy">Hoy</button>
+        <button class="chip" data-quick="ayer">Ayer</button>
+        <button class="chip" data-quick="-7">Hace 7 días</button>
+      </div>
+      <div class="station-chips" id="stationChips" aria-label="Estaciones visibles"></div>
+    </div>
+
+    <div class="day-headline" id="dayHeadline" hidden>
+      <div class="dh-item">
+        <span class="dh-label">Δ urbano-rural del día</span>
+        <span class="dh-value" id="dhDelta">—</span>
+      </div>
+      <div class="dh-item">
+        <span class="dh-label">Máxima de la red</span>
+        <span class="dh-value" id="dhMax">—</span>
+      </div>
+      <div class="dh-item">
+        <span class="dh-label">Mínima de la red</span>
+        <span class="dh-value" id="dhMin">—</span>
+      </div>
+      <div class="dh-item">
+        <span class="dh-label">Mayor Δ horario</span>
+        <span class="dh-value" id="dhPeak">—</span>
+      </div>
+    </div>
+
+    <div class="day-empty" id="dayEmpty" hidden>No hay datos registrados para esta fecha.</div>
+
+    <div class="chart-stack" id="dayCharts">
+      <figure class="chart-card chart-hero">
+        <figcaption><span class="cc-title">Temperatura</span><span class="cc-unit">°C · promedio horario</span></figcaption>
+        <div class="chart-host" id="chartTemp"></div>
+      </figure>
+      <figure class="chart-card">
+        <figcaption><span class="cc-title">Δ vs Isla de Maipo</span><span class="cc-unit">°C · cada estación − referencia rural</span></figcaption>
+        <div class="chart-host" id="chartDelta"></div>
+      </figure>
+      <div class="chart-pair">
+        <figure class="chart-card">
+          <figcaption><span class="cc-title">Humedad relativa</span><span class="cc-unit">%</span></figcaption>
+          <div class="chart-host" id="chartHum"></div>
+        </figure>
+        <figure class="chart-card">
+          <figcaption><span class="cc-title">Radiación global</span><span class="cc-unit">W/m²</span></figcaption>
+          <div class="chart-host" id="chartRad"></div>
+        </figure>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="day-table" id="dayTable">
+        <thead>
+          <tr>
+            <th>Estación</th>
+            <th>T° prom</th><th>T° máx</th><th>T° mín</th>
+            <th>Δ prom<span class="th-sub">vs Isla</span></th>
+            <th>HR prom</th><th>Rad máx</th>
+            <th>Viento</th><th>Dirección</th><th>Cobertura</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ SECCIÓN 2 · COMPARAR DOS DÍAS ============ -->
+  <section class="exp-section" id="seccion-comparar">
+    <div class="section-head">
+      <span class="section-kicker">02 · Lado a lado</span>
+      <h2>Comparar dos fechas</h2>
+    </div>
+
+    <div class="cmp-toolbar">
+      <label class="field">
+        <span class="field-label">Estación</span>
+        <select id="cmpStation" class="select"></select>
+      </label>
+      <label class="field">
+        <span class="field-label">Variable</span>
+        <select id="cmpVar" class="select">
+          <option value="t">Temperatura (°C)</option>
+          <option value="h">Humedad (%)</option>
+          <option value="r">Radiación (W/m²)</option>
+          <option value="w">Viento (m/s)</option>
+        </select>
+      </label>
+      <label class="field">
+        <span class="field-label">Fecha A</span>
+        <input type="date" id="cmpDateA" class="date-input">
+      </label>
+      <label class="field">
+        <span class="field-label">Fecha B</span>
+        <input type="date" id="cmpDateB" class="date-input">
+      </label>
+    </div>
+
+    <figure class="chart-card chart-hero">
+      <figcaption><span class="cc-title" id="cmpTitle">Comparación</span><span class="cc-unit" id="cmpUnit"></span></figcaption>
+      <div class="chart-host" id="chartCmp"></div>
+    </figure>
+
+    <div class="cmp-stats" id="cmpStats"></div>
+  </section>
+
+  <!-- ============ SECCIÓN 3 · CONSULTAS ============ -->
+  <section class="exp-section" id="seccion-consultas">
+    <div class="section-head">
+      <span class="section-kicker">03 · Toda la base</span>
+      <h2>Consultas al histórico</h2>
+    </div>
+    <p class="section-note">Ejemplo: <em>Temperatura · Todas las urbanas · Julio 2025 · Mayor Δ vs Isla de Maipo</em> responde
+    “¿cuál fue el mayor diferencial con la referencia rural en julio?”.</p>
+
+    <div class="query-bar">
+      <label class="field">
+        <span class="field-label">Variable</span>
+        <select id="qVar" class="select">
+          <option value="t">Temperatura</option>
+          <option value="h">Humedad</option>
+          <option value="r">Radiación</option>
+          <option value="w">Viento</option>
+        </select>
+      </label>
+      <label class="field">
+        <span class="field-label">Estación</span>
+        <select id="qStation" class="select"></select>
+      </label>
+      <label class="field">
+        <span class="field-label">Período</span>
+        <select id="qPeriod" class="select"></select>
+      </label>
+      <label class="field" id="qCustomA" hidden>
+        <span class="field-label">Desde</span>
+        <input type="date" id="qDateA" class="date-input">
+      </label>
+      <label class="field" id="qCustomB" hidden>
+        <span class="field-label">Hasta</span>
+        <input type="date" id="qDateB" class="date-input">
+      </label>
+      <label class="field">
+        <span class="field-label">Operación</span>
+        <select id="qOp" class="select">
+          <option value="avg">Promedio</option>
+          <option value="max">Máximo</option>
+          <option value="min">Mínimo</option>
+          <option value="deltamax">Mayor Δ vs Isla de Maipo</option>
+          <option value="over30">Días con máxima sobre 30°</option>
+        </select>
+      </label>
+      <button class="query-go" id="qGo">Consultar</button>
+    </div>
+
+    <div class="query-result" id="qResult" hidden>
+      <div class="qr-answer">
+        <div class="qr-value" id="qrValue">—</div>
+        <p class="qr-sentence" id="qrSentence"></p>
+      </div>
+      <div class="qr-detail">
+        <div class="qr-ranking" id="qrRanking"></div>
+        <figure class="chart-card qr-spark">
+          <figcaption><span class="cc-title" id="qrSparkTitle">Serie diaria</span><span class="cc-unit" id="qrSparkUnit"></span></figcaption>
+          <div class="chart-host" id="chartQuery"></div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <footer class="exp-footer">
+    <span>MUC · GEAF UC · FONDECYT Nº 1241886</span>
+    <span class="dashboard-version">v1.35 · 2026-06-10 · multipágina: menú + explorador de datos</span>
+  </footer>
+
+</div>
+
+<script src="explorar.js"></script>
+</body>
+</html>
