@@ -1,0 +1,625 @@
+// ============================================================
+// MUC — Página de difusión: Estación Renca vs Isla de Maipo
+// - En vivo: ThingSpeak cada 5 min (canales renca + isla-maipo)
+// - Histórico: data/renca.json + data/isla-maipo.json (hourly,
+//   acumulados a diario por el GitHub Action)
+// - "Hoy" y días recientes se completan en vivo desde la API.
+// Autónoma: no depende de data.js / app.js / explorar.js.
+// ============================================================
+
+'use strict';
+
+const ST = {
+  renca: {
+    file: 'data/renca.json', channelId: 3027229, readKey: 'T40LCTX172ZB9E9F',
+    fields: { w: 'field1', d: 'field2', h: 'field3', t: 'field4', r: 'field5' },
+    color: '#E78D70', label: 'Renca'
+  },
+  isla: {
+    file: 'data/isla-maipo.json', channelId: 2911247, readKey: 'JG5XFI4NB556UKO2',
+    fields: { w: 'field1', d: 'field2', h: 'field3', t: 'field4', r: 'field5' },
+    color: '#7B8A99', label: 'Isla de Maipo'
+  }
+};
+
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const MESES_CAP = MESES.map(m => m[0].toUpperCase() + m.slice(1));
+const MESES_CORTO = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+
+// ---------- Estado ----------
+const BYDAY = { renca: {}, isla: {} };
+let DATA_MIN = null, DATA_MAX = null;
+const LIVE_CACHE = {};       // ymd → { renca: day, isla: day }
+let currentDay = null;
+
+// ---------- Helpers ----------
+function todayYmd() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function shiftYmd(ymd, days) {
+  const d = new Date(ymd + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function fmtDateEs(ymd, withYear = true) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return d + ' de ' + MESES[m - 1] + (withYear ? ' de ' + y : '');
+}
+function fmtDateShort(ymd) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return d + ' ' + MESES[m - 1].slice(0, 3) + ' ' + String(y).slice(2);
+}
+const mean = arr => { const v = arr.filter(x => x != null); return v.length ? v.reduce((a, c) => a + c, 0) / v.length : null; };
+const maxOf = arr => { const v = arr.filter(x => x != null); return v.length ? Math.max(...v) : null; };
+const minOf = arr => { const v = arr.filter(x => x != null); return v.length ? Math.min(...v) : null; };
+function fmt(v, dec, unit) { return (v == null || isNaN(v)) ? '—' : v.toFixed(dec) + (unit || ''); }
+function fmtSigned(v, dec) { return (v == null || isNaN(v)) ? '—' : (v >= 0 ? '+' : '') + v.toFixed(dec) + '°'; }
+function degToCompassEs(deg) {
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'];
+  return dirs[Math.round(deg / 22.5) % 16];
+}
+function deltaColor(delta) {
+  if (delta < -3) return '#3E647A';
+  if (delta < -1.5) return '#7DA6BB';
+  if (delta < -0.5) return '#B4D4E0';
+  if (delta < 0.5) return '#F4F4F4';
+  if (delta < 2) return '#F8E0CE';
+  if (delta < 3.5) return '#F8BC7E';
+  if (delta < 4.5) return '#E78D70';
+  return '#D26852';
+}
+function emptyDay() {
+  const nulls = () => new Array(24).fill(null);
+  return { h: { t: nulls(), h: nulls(), w: nulls(), d: nulls(), r: nulls() } };
+}
+
+// ---------- Carga del histórico ----------
+async function loadHistory() {
+  await Promise.all(Object.entries(ST).map(async ([key, st]) => {
+    try {
+      const res = await fetch(st.file, { cache: 'no-cache' });
+      if (!res.ok) return;
+      const json = await res.json();
+      BYDAY[key] = json.byDay || {};
+      for (const ymd of Object.keys(BYDAY[key])) {
+        if (!DATA_MIN || ymd < DATA_MIN) DATA_MIN = ymd;
+        if (!DATA_MAX || ymd > DATA_MAX) DATA_MAX = ymd;
+      }
+    } catch (e) { console.warn('[renca] no se pudo cargar', st.file, e.message); }
+  }));
+}
+
+// ---------- Día en vivo (hoy / días posteriores al último JSON) ----------
+async function fetchLiveDay(ymd) {
+  if (LIVE_CACHE[ymd]) return LIVE_CACHE[ymd];
+  const out = {};
+  await Promise.all(Object.entries(ST).map(async ([key, st]) => {
+    const url = 'https://api.thingspeak.com/channels/' + st.channelId + '/feeds.json' +
+      '?api_key=' + st.readKey + '&start=' + ymd + '%2000:00:00&end=' + ymd + '%2023:59:59' +
+      '&average=60&results=8000&timezone=America%2FSantiago';
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 10000);
+      const res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(t);
+      if (!res.ok) return;
+      const json = await res.json();
+      const day = emptyDay();
+      let got = false;
+      for (const f of (json.feeds || [])) {
+        if (!f || !f.created_at) continue;
+        const hr = new Date(f.created_at).getHours();
+        if (isNaN(hr)) continue;
+        for (const [v, col] of Object.entries(st.fields)) {
+          const val = parseFloat(f[col]);
+          if (!isNaN(val) && day.h[v][hr] == null) { day.h[v][hr] = val; got = true; }
+        }
+      }
+      if (got) {
+        day.all_avg = mean(day.h.t);
+        day.all_max = maxOf(day.h.t);
+        day.all_min = minOf(day.h.t);
+        out[key] = day;
+      }
+    } catch (e) { /* sin red: seguimos con el JSON */ }
+  }));
+  LIVE_CACHE[ymd] = out;
+  return out;
+}
+
+function getDay(key, ymd) {
+  const live = LIVE_CACHE[ymd];
+  if (live && live[key]) return live[key];
+  return BYDAY[key][ymd] || null;
+}
+
+// ============================================================
+// Charts SVG (horario + serie diaria multi-línea) con hover
+// ============================================================
+function renderHourChart(host, opts) {
+  const { series, dec, unit, zeroLine, height } = opts;
+  const W = 720, H = height || 220;
+  const padL = 44, padR = 14, padT = 12, padB = 26;
+  const allVals = series.flatMap(s => s.values.filter(v => v != null));
+  host.innerHTML = '';
+  if (!allVals.length) {
+    host.innerHTML = '<div style="padding:36px;text-align:center;color:var(--text-light);font-size:13px;">Sin datos para esta selección</div>';
+    return;
+  }
+  let yMin = Math.min(...allVals), yMax = Math.max(...allVals);
+  if (zeroLine) { yMin = Math.min(yMin, 0); yMax = Math.max(yMax, 0); }
+  if (yMax - yMin < 1e-9) { yMax += 1; yMin -= 1; }
+  const span = yMax - yMin; yMin -= span * 0.08; yMax += span * 0.08;
+  const xs = i => padL + (i / 23) * (W - padL - padR);
+  const ys = v => padT + (1 - (v - yMin) / (yMax - yMin)) * (H - padT - padB);
+  const rawStep = (yMax - yMin) / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= rawStep) || rawStep;
+  let g = '';
+  for (let v = Math.ceil(yMin / step) * step; v <= yMax + 1e-9; v += step) {
+    const y = ys(v);
+    g += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="rgba(44,75,102,0.07)" stroke-width="1"/>`;
+    g += `<text x="${padL - 8}" y="${(y + 3.5).toFixed(1)}" text-anchor="end" font-size="10.5" fill="#7B8A99" font-weight="600">${Number(v.toFixed(Math.max(0, dec)))}</text>`;
+  }
+  if (zeroLine && yMin < 0 && yMax > 0) {
+    const y0 = ys(0);
+    g += `<line x1="${padL}" y1="${y0.toFixed(1)}" x2="${W - padR}" y2="${y0.toFixed(1)}" stroke="rgba(44,75,102,0.35)" stroke-width="1.2"/>`;
+  }
+  for (const hr of [0, 6, 12, 18, 23]) {
+    g += `<text x="${xs(hr).toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#B0B9C2" font-weight="600">${String(hr).padStart(2, '0')}h</text>`;
+  }
+  let paths = '';
+  for (const s of series) {
+    let dPath = '', open = false;
+    s.values.forEach((v, i) => {
+      if (v == null) { open = false; return; }
+      dPath += (open ? ' L' : (dPath ? ' M' : 'M')) + xs(i).toFixed(1) + ',' + ys(v).toFixed(1);
+      open = true;
+    });
+    if (dPath) paths += `<path d="${dPath}" fill="none" stroke="${s.color}" stroke-width="${s.width || 2}" ` +
+      (s.dash ? `stroke-dasharray="${s.dash}" ` : '') + `stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>`;
+  }
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = g + paths +
+    `<line class="hover-line" x1="0" y1="${padT}" x2="0" y2="${H - padB}" stroke="rgba(44,75,102,0.4)" stroke-width="1" stroke-dasharray="3 3" visibility="hidden"/>`;
+  host.appendChild(svg);
+
+  const tip = document.createElement('div');
+  tip.className = 'chart-tip'; tip.style.display = 'none';
+  host.appendChild(tip);
+  const hoverLine = svg.querySelector('.hover-line');
+  svg.addEventListener('pointermove', ev => {
+    const rect = svg.getBoundingClientRect();
+    const fx = (ev.clientX - rect.left) / rect.width * W;
+    let hr = Math.round((fx - padL) / (W - padL - padR) * 23);
+    hr = Math.max(0, Math.min(23, hr));
+    const rows = series.map(s => ({ s, v: s.values[hr] })).filter(r => r.v != null);
+    if (!rows.length) { tip.style.display = 'none'; hoverLine.setAttribute('visibility', 'hidden'); return; }
+    hoverLine.setAttribute('x1', xs(hr)); hoverLine.setAttribute('x2', xs(hr));
+    hoverLine.setAttribute('visibility', 'visible');
+    tip.innerHTML = `<span class="tt-hour">${String(hr).padStart(2, '0')}:00</span>` +
+      rows.map(r => `<div class="tt-row"><span class="tt-dot" style="background:${r.s.color}"></span>${r.s.label}` +
+        `<span class="tt-val">${fmt(r.v, dec, unit ? ' ' + unit : '')}</span></div>`).join('');
+    tip.style.display = 'block';
+    tip.style.left = Math.max(70, Math.min(rect.width - 70, xs(hr) / W * rect.width)) + 'px';
+    tip.style.top = (ev.clientY - rect.top) + 'px';
+  });
+  svg.addEventListener('pointerleave', () => { tip.style.display = 'none'; hoverLine.setAttribute('visibility', 'hidden'); });
+}
+
+function renderDailyMulti(host, days, seriesArr, opts) {
+  const { dec, unit, height } = opts;
+  const W = 720, H = height || 240;
+  const padL = 44, padR = 14, padT = 12, padB = 26;
+  host.innerHTML = '';
+  const allVals = seriesArr.flatMap(s => s.values.filter(v => v != null));
+  if (!allVals.length) {
+    host.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-light);font-size:13px;">Sin datos en el período</div>';
+    return;
+  }
+  let yMin = Math.min(...allVals), yMax = Math.max(...allVals);
+  if (yMax - yMin < 1e-9) { yMax += 1; yMin -= 1; }
+  const span = yMax - yMin; yMin -= span * 0.1; yMax += span * 0.1;
+  const N = days.length;
+  const xs = i => N === 1 ? (padL + (W - padL - padR) / 2) : padL + (i / (N - 1)) * (W - padL - padR);
+  const ys = v => padT + (1 - (v - yMin) / (yMax - yMin)) * (H - padT - padB);
+  let g = '';
+  const rawStep = (yMax - yMin) / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= rawStep) || rawStep;
+  for (let v = Math.ceil(yMin / step) * step; v <= yMax + 1e-9; v += step) {
+    const y = ys(v);
+    g += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="rgba(44,75,102,0.07)" stroke-width="1"/>`;
+    g += `<text x="${padL - 8}" y="${(y + 3.5).toFixed(1)}" text-anchor="end" font-size="10.5" fill="#7B8A99" font-weight="600">${Number(v.toFixed(Math.max(0, dec)))}</text>`;
+  }
+  [[0], [Math.floor((N - 1) / 2)], [N - 1]].forEach(([i]) => {
+    if (days[i]) g += `<text x="${xs(i).toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#B0B9C2" font-weight="600">${fmtDateShort(days[i])}</text>`;
+  });
+  let paths = '';
+  for (const s of seriesArr) {
+    let dPath = '', open = false;
+    s.values.forEach((v, i) => {
+      if (v == null) { open = false; return; }
+      dPath += (open ? ' L' : (dPath ? ' M' : 'M')) + xs(i).toFixed(1) + ',' + ys(v).toFixed(1);
+      open = true;
+    });
+    if (dPath) paths += `<path d="${dPath}" fill="none" stroke="${s.color}" stroke-width="2" ` +
+      (s.dash ? `stroke-dasharray="${s.dash}" ` : '') + `stroke-linejoin="round" stroke-linecap="round"/>`;
+  }
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = g + paths;
+  host.appendChild(svg);
+
+  const tip = document.createElement('div');
+  tip.className = 'chart-tip'; tip.style.display = 'none';
+  host.appendChild(tip);
+  svg.addEventListener('pointermove', ev => {
+    const rect = svg.getBoundingClientRect();
+    const fx = (ev.clientX - rect.left) / rect.width * W;
+    let i = Math.round((fx - padL) / Math.max(1, W - padL - padR) * (N - 1));
+    i = Math.max(0, Math.min(N - 1, i));
+    const rows = seriesArr.map(s => ({ s, v: s.values[i] })).filter(r => r.v != null);
+    if (!rows.length) { tip.style.display = 'none'; return; }
+    tip.innerHTML = `<span class="tt-hour">${fmtDateEs(days[i])}</span>` +
+      rows.map(r => `<div class="tt-row"><span class="tt-dot" style="background:${r.s.color}"></span>${r.s.label}` +
+        `<span class="tt-val">${fmt(r.v, dec, ' ' + unit)}</span></div>`).join('');
+    tip.style.display = 'block';
+    tip.style.left = Math.max(80, Math.min(rect.width - 80, xs(i) / W * rect.width)) + 'px';
+    tip.style.top = (ev.clientY - rect.top) + 'px';
+  });
+  svg.addEventListener('pointerleave', () => { tip.style.display = 'none'; });
+}
+
+// ============================================================
+// 01 · AHORA
+// ============================================================
+function tsUrl(st, results) {
+  return 'https://api.thingspeak.com/channels/' + st.channelId + '/feeds.json?api_key=' + st.readKey + '&results=' + results;
+}
+
+async function fetchNowFor(st) {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch(tsUrl(st, 2), { signal: ctrl.signal });
+    clearTimeout(t);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const feeds = ((await res.json()).feeds || []).filter(f => f && f.created_at);
+    if (!feeds.length) return null;
+    const latest = feeds[feeds.length - 1];
+    const prev = feeds.length > 1 ? feeds[feeds.length - 2] : null;
+    const out = { timestamp: new Date(latest.created_at) };
+    for (const [k, col] of Object.entries(st.fields)) {
+      const v = parseFloat(latest[col]);
+      out[k] = isNaN(v) ? null : v;
+      if (prev) {
+        const pv = parseFloat(prev[col]);
+        if (!isNaN(pv) && !isNaN(v)) out[k + 'Trend'] = v - pv;
+      }
+    }
+    return out;
+  } catch (e) { return null; }
+}
+
+function setStatus(el, data) {
+  if (!data || !data.timestamp) { el.textContent = 'SIN DATOS'; el.classList.add('stale'); return; }
+  const mins = Math.round((Date.now() - data.timestamp) / 60000);
+  el.textContent = mins > 120 ? '● ' + Math.round(mins / 60) + ' H' : '● ' + mins + ' MIN';
+  el.classList.toggle('stale', mins > 30);
+}
+
+async function updateNow() {
+  const [rnc, isl] = await Promise.all([fetchNowFor(ST.renca), fetchNowFor(ST.isla)]);
+  const $ = id => document.getElementById(id);
+
+  setStatus($('rncStatus'), rnc);
+  setStatus($('islStatus'), isl);
+
+  if (rnc) {
+    if (rnc.t != null) $('rncTemp').textContent = Math.round(rnc.t) + '°';
+    const tr = $('rncTrend');
+    if (rnc.tTrend != null) {
+      tr.textContent = (rnc.tTrend >= 0 ? '↑' : '↓') + Math.abs(rnc.tTrend).toFixed(1) + '°';
+      tr.classList.toggle('up', rnc.tTrend >= 0);
+      tr.classList.toggle('down', rnc.tTrend < 0);
+    }
+    $('rncHum').textContent = rnc.h != null ? Math.round(rnc.h) : '—';
+    $('rncRad').textContent = rnc.r != null ? Math.round(rnc.r) : '—';
+    $('rncWind').textContent = rnc.w != null ? rnc.w.toFixed(1) : '—';
+    $('rncDir').textContent = rnc.d != null ? degToCompassEs(rnc.d) + ' ' + Math.round(rnc.d) + '°' : '—';
+  }
+  if (isl) {
+    if (isl.t != null) $('islTemp').textContent = Math.round(isl.t) + '°';
+    $('islHum').textContent = isl.h != null ? Math.round(isl.h) : '—';
+    $('islRad').textContent = isl.r != null ? Math.round(isl.r) : '—';
+    $('islWind').textContent = isl.w != null ? isl.w.toFixed(1) : '—';
+  }
+  if (rnc && isl && rnc.t != null && isl.t != null) {
+    $('deltaNow').textContent = fmtSigned(rnc.t - isl.t, 1) + 'C';
+  }
+
+  // Rango de hoy + Δ prom/máx de hoy + curva "Hoy" (en vivo)
+  const today = todayYmd();
+  delete LIVE_CACHE[today];
+  const live = await fetchLiveDay(today);
+  const R = live.renca, I = live.isla;
+  if (R) {
+    const tmin = R.all_min, tmax = R.all_max;
+    $('rncMin').textContent = fmt(tmin, 0, '°');
+    $('rncMax').textContent = fmt(tmax, 0, '°');
+    if (tmin != null && tmax != null) {
+      const pct = v => Math.max(0, Math.min(100, v / 35 * 100));
+      const fill = $('rncRangeFill');
+      fill.style.left = pct(tmin) + '%';
+      fill.style.width = Math.max(1, pct(tmax) - pct(tmin)) + '%';
+      if (rnc && rnc.t != null) $('rncRangePin').style.left = pct(rnc.t) + '%';
+    }
+  }
+  if (R && I) {
+    const deltas = [];
+    for (let i = 0; i < 24; i++) {
+      if (R.h.t[i] != null && I.h.t[i] != null) deltas.push({ hr: i, v: R.h.t[i] - I.h.t[i] });
+    }
+    if (deltas.length) {
+      $('deltaAvgHoy').textContent = fmtSigned(mean(deltas.map(d => d.v)), 1);
+      const peak = deltas.reduce((a, b) => b.v > a.v ? b : a);
+      $('deltaMaxHoy').textContent = fmtSigned(peak.v, 1);
+      $('deltaMaxHoyLbl').textContent = 'Máx ' + String(peak.hr).padStart(2, '0') + ':00';
+    }
+  }
+  renderHourChart(document.getElementById('chartHoy'), {
+    series: [
+      R ? { label: 'Renca', color: ST.renca.color, values: R.h.t } : null,
+      I ? { label: 'Isla de Maipo', color: ST.isla.color, dash: '5 4', values: I.h.t } : null
+    ].filter(Boolean),
+    dec: 1, unit: '°C', height: 220
+  });
+}
+
+// ============================================================
+// 02 · DÍA
+// ============================================================
+async function renderDayView(ymd) {
+  currentDay = ymd;
+  document.getElementById('diaInput').value = ymd;
+  if (ymd >= (DATA_MAX || '') || ymd === todayYmd()) await fetchLiveDay(ymd);
+
+  const R = getDay('renca', ymd), I = getDay('isla', ymd);
+  const any = !!(R || I);
+  document.getElementById('dayEmpty').hidden = any;
+  document.getElementById('dayHeadline').hidden = !any;
+  document.getElementById('dayCharts').style.display = any ? '' : 'none';
+  if (!any) return;
+
+  const $ = id => document.getElementById(id);
+  const deltas = [];
+  if (R && I) {
+    for (let i = 0; i < 24; i++) {
+      if (R.h.t[i] != null && I.h.t[i] != null) deltas.push({ hr: i, v: R.h.t[i] - I.h.t[i] });
+    }
+  }
+  $('dhDelta').textContent = deltas.length ? fmtSigned(mean(deltas.map(d => d.v)), 1) : '—';
+  $('dhMax').textContent = R ? fmt(R.all_max != null ? R.all_max : maxOf(R.h.t), 1, '°') : '—';
+  $('dhMin').textContent = R ? fmt(R.all_min != null ? R.all_min : minOf(R.h.t), 1, '°') : '—';
+  if (deltas.length) {
+    const peak = deltas.reduce((a, b) => b.v > a.v ? b : a);
+    $('dhPeak').innerHTML = fmtSigned(peak.v, 1) + ' <small>' + String(peak.hr).padStart(2, '0') + ':00</small>';
+  } else $('dhPeak').textContent = '—';
+
+  const mk = v => [
+    R && R.h[v] ? { label: 'Renca', color: ST.renca.color, values: R.h[v] } : null,
+    I && I.h[v] ? { label: 'Isla de Maipo', color: ST.isla.color, dash: '5 4', values: I.h[v] } : null
+  ].filter(Boolean);
+
+  renderHourChart($('chartTemp'), { series: mk('t'), dec: 1, unit: '°C', height: 250 });
+  renderHourChart($('chartDelta'), {
+    series: deltas.length ? [{ label: 'Δ Renca − Isla', color: ST.renca.color,
+      values: Array.from({ length: 24 }, (_, i) => {
+        const d = deltas.find(x => x.hr === i);
+        return d ? Number(d.v.toFixed(2)) : null;
+      }) }] : [],
+    dec: 1, unit: '°C', zeroLine: true, height: 190
+  });
+  renderHourChart($('chartHum'), { series: mk('h'), dec: 0, unit: '%', height: 180 });
+  renderHourChart($('chartRad'), { series: mk('r'), dec: 0, unit: 'W/m²', height: 180 });
+}
+
+// ============================================================
+// 03 · MES
+// ============================================================
+// Δ diario honesto: promedio de los Δ por hora, solo en horas donde AMBAS
+// estaciones tienen dato (≥6 horas pareadas). Comparar promedios diarios de
+// coberturas distintas (p.ej. Isla solo madrugada) sesga el resultado.
+function pairedDelta(ymd) {
+  const R = getDay('renca', ymd), I = getDay('isla', ymd);
+  if (!R || !I || !R.h || !I.h) return null;
+  const ds = [];
+  for (let i = 0; i < 24; i++) {
+    if (R.h.t[i] != null && I.h.t[i] != null) ds.push(R.h.t[i] - I.h.t[i]);
+  }
+  return ds.length >= 6 ? mean(ds) : null;
+}
+
+function monthDays(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  const last = new Date(y, m, 0).getDate();
+  const days = [];
+  for (let d = 1; d <= last; d++) days.push(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+  return days;
+}
+
+function buildMonthOptions() {
+  const sel = document.getElementById('mesSelect');
+  sel.innerHTML = '';
+  if (!DATA_MIN || !DATA_MAX) return;
+  let [y, m] = DATA_MAX.split('-').map(Number);
+  const [y0, m0] = DATA_MIN.split('-').map(Number);
+  while (y > y0 || (y === y0 && m >= m0)) {
+    const o = document.createElement('option');
+    o.value = y + '-' + String(m).padStart(2, '0');
+    o.textContent = MESES_CAP[m - 1] + ' ' + y;
+    sel.appendChild(o);
+    m--; if (m === 0) { m = 12; y--; }
+  }
+}
+
+function renderMonth() {
+  const ym = document.getElementById('mesSelect').value;
+  if (!ym) return;
+  const days = monthDays(ym);
+  const today = todayYmd();
+  const shown = days.filter(d => d <= today);
+  const $ = id => document.getElementById(id);
+
+  const avgR = shown.map(d => { const x = getDay('renca', d); return x ? (x.all_avg != null ? x.all_avg : mean(x.h.t)) : null; });
+  const avgI = shown.map(d => { const x = getDay('isla', d); return x ? (x.all_avg != null ? x.all_avg : mean(x.h.t)) : null; });
+  const maxR = shown.map(d => { const x = getDay('renca', d); return x ? (x.all_max != null ? x.all_max : maxOf(x.h.t)) : null; });
+
+  const deltas = shown.map(d => pairedDelta(d)).filter(v => v != null);
+  $('mesStats').hidden = false;
+  $('msPromR').textContent = fmt(mean(avgR), 1, '°');
+  $('msPromI').textContent = fmt(mean(avgI), 1, '°');
+  $('msDelta').textContent = deltas.length ? fmtSigned(mean(deltas), 1) : '—';
+  const over30 = maxR.filter(v => v != null && v > 30).length;
+  $('msExtra').textContent = over30 + (over30 === 1 ? ' día' : ' días');
+
+  renderDailyMulti($('chartMes'), shown, [
+    { label: 'Renca', color: ST.renca.color, values: avgR },
+    { label: 'Isla de Maipo', color: ST.isla.color, dash: '5 4', values: avgI }
+  ], { dec: 1, unit: '°C', height: 250 });
+}
+
+// ============================================================
+// 04 · AÑO (calendario Δ diario)
+// ============================================================
+function buildYearOptions() {
+  const sel = document.getElementById('anioSelect');
+  sel.innerHTML = '';
+  if (!DATA_MIN || !DATA_MAX) return;
+  const y0 = Number(DATA_MIN.slice(0, 4)), y1 = Number(DATA_MAX.slice(0, 4));
+  for (let y = y1; y >= y0; y--) {
+    const o = document.createElement('option');
+    o.value = String(y); o.textContent = String(y);
+    sel.appendChild(o);
+  }
+}
+
+let calTip = null;
+function renderYear() {
+  const year = Number(document.getElementById('anioSelect').value);
+  if (!year) return;
+  const grid = document.getElementById('calGrid');
+  const monthsRow = document.getElementById('calMonths');
+  grid.innerHTML = '';
+  monthsRow.innerHTML = MESES_CORTO.map(m => '<span>' + m + '</span>').join('');
+
+  const jan1 = new Date(year, 0, 1);
+  const start = new Date(jan1);
+  const dow = jan1.getDay(); // 0=dom
+  start.setDate(jan1.getDate() - (dow === 0 ? 6 : dow - 1)); // lunes previo
+  const today = todayYmd();
+
+  if (!calTip) {
+    calTip = document.createElement('div');
+    calTip.className = 'cal-tip';
+    calTip.style.display = 'none';
+    document.body.appendChild(calTip);
+  }
+
+  const stats = { deltas: [], maxT: null, maxTDay: null, peakD: null, peakDay: null, covered: 0 };
+
+  for (let w = 0; w < 53; w++) {
+    for (let d = 0; d < 7; d++) {
+      const date = new Date(start);
+      date.setDate(start.getDate() + w * 7 + d);
+      const ymd = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+      const cell = document.createElement('div');
+      cell.className = 'cal-cell';
+      if (date.getFullYear() === year && ymd <= today) {
+        const R = getDay('renca', ymd), I = getDay('isla', ymd);
+        const tR = R ? (R.all_avg != null ? R.all_avg : mean(R.h.t)) : null;
+        if (tR != null) {
+          stats.covered++;
+          const mx = R.all_max != null ? R.all_max : maxOf(R.h.t);
+          if (mx != null && (stats.maxT == null || mx > stats.maxT)) { stats.maxT = mx; stats.maxTDay = ymd; }
+        }
+        const delta = pairedDelta(ymd);
+        if (delta != null) {
+          const tI = I ? (I.all_avg != null ? I.all_avg : mean(I.h.t)) : null;
+          stats.deltas.push(delta);
+          if (stats.peakD == null || delta > stats.peakD) { stats.peakD = delta; stats.peakDay = ymd; }
+          cell.style.background = deltaColor(delta);
+          cell.classList.add('hasdata');
+          cell.dataset.tip = `<strong>${fmtDateEs(ymd)}</strong><br>Δ ${fmtSigned(delta, 1)} · Renca ${fmt(tR, 1, '°')} · Isla ${fmt(tI, 1, '°')}`;
+        } else if (tR != null) {
+          cell.style.background = 'rgba(123,138,153,0.25)';
+        }
+      }
+      grid.appendChild(cell);
+    }
+  }
+
+  grid.onpointermove = ev => {
+    const c = ev.target.closest('.cal-cell');
+    if (!c || !c.dataset.tip) { calTip.style.display = 'none'; return; }
+    calTip.innerHTML = c.dataset.tip;
+    calTip.style.display = 'block';
+    calTip.style.left = ev.clientX + 'px';
+    calTip.style.top = ev.clientY + 'px';
+  };
+  grid.onpointerleave = () => { calTip.style.display = 'none'; };
+
+  const $ = id => document.getElementById(id);
+  $('anioStats').hidden = false;
+  $('anDelta').textContent = stats.deltas.length ? fmtSigned(mean(stats.deltas), 1) : '—';
+  $('anMax').innerHTML = stats.maxT != null ? fmt(stats.maxT, 1, '°') + ' <small>' + fmtDateEs(stats.maxTDay, false) + '</small>' : '—';
+  $('anPeak').innerHTML = stats.peakD != null ? fmtSigned(stats.peakD, 1) + ' <small>' + fmtDateEs(stats.peakDay, false) + '</small>' : '—';
+  $('anCov').textContent = stats.covered + ' días';
+}
+
+// ============================================================
+// Init
+// ============================================================
+async function init() {
+  await loadHistory();
+
+  const today = todayYmd();
+  const dia = document.getElementById('diaInput');
+  dia.min = DATA_MIN || ''; dia.max = today;
+
+  document.getElementById('introRange').textContent = DATA_MIN
+    ? 'el ' + fmtDateEs(DATA_MIN)
+    : '(sin histórico: sirve la página por http)';
+
+  // 01 — en vivo (incluye curva de hoy), cada 5 min
+  updateNow();
+  setInterval(updateNow, 5 * 60 * 1000);
+
+  // 02 — día
+  dia.addEventListener('change', () => { if (dia.value) renderDayView(dia.value); });
+  document.getElementById('diaPrev').addEventListener('click', () => renderDayView(shiftYmd(currentDay, -1)));
+  document.getElementById('diaNext').addEventListener('click', () => {
+    const next = shiftYmd(currentDay, 1);
+    if (next <= today) renderDayView(next);
+  });
+  document.querySelectorAll('.date-quick .chip').forEach(b => b.addEventListener('click', () => {
+    const q = b.dataset.quick;
+    renderDayView(q === 'hoy' ? today : q === 'ayer' ? shiftYmd(today, -1) : shiftYmd(today, -30));
+  }));
+  await renderDayView(DATA_MAX && DATA_MAX < today ? DATA_MAX : shiftYmd(today, -1));
+
+  // 03 — mes
+  buildMonthOptions();
+  document.getElementById('mesSelect').addEventListener('change', renderMonth);
+  renderMonth();
+
+  // 04 — año
+  buildYearOptions();
+  document.getElementById('anioSelect').addEventListener('change', renderYear);
+  renderYear();
+}
+
+init();
