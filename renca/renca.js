@@ -38,7 +38,19 @@ const DIAS_SEM = ['DOMINGO','LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES','S�
 const BYDAY = { renca: {}, isla: {} };
 let DATA_MIN = null, DATA_MAX = null;
 const LIVE_CACHE = {};
-const state = { tab: 'dia', varKey: 't', day: null, month: null, year: null };
+const state = { tab: 'dia', varKey: 't', cmp: '', day: null, month: null, year: null };
+
+// Estaciones del año (hemisferio sur), para el comparador
+const SEASONS = {
+  verano:    { months: [11, 0, 1], label: 'verano' },
+  otono:     { months: [2, 3, 4], label: 'otoño' },
+  invierno:  { months: [5, 6, 7], label: 'invierno' },
+  primavera: { months: [8, 9, 10], label: 'primavera' }
+};
+function seasonOf(monthIdx) {
+  for (const s of Object.values(SEASONS)) if (s.months.includes(monthIdx)) return s;
+  return null;
+}
 
 // ---------- Helpers ----------
 const $ = id => document.getElementById(id);
@@ -288,73 +300,163 @@ function renderSeriesChart(host, opts) {
   svg.addEventListener('pointerleave', () => { tip.style.display = 'none'; hoverLine.setAttribute('visibility', 'hidden'); });
 }
 
-// Sparkline chiquita (métricas de "Ahora")
+// Serie de las ÚLTIMAS 24 horas (ayer + hoy, terminando en la hora actual)
+function last24h(key, k) {
+  const curHr = new Date().getHours();
+  const today = todayYmd(), yest = shiftYmd(today, -1);
+  const T = getDay(key, today), Y = getDay(key, yest);
+  const vals = [];
+  for (let i = curHr + 1; i < 24; i++) vals.push(Y && Y.h[k][i] != null ? Y.h[k][i] : null);
+  for (let i = 0; i <= curHr; i++) vals.push(T && T.h[k][i] != null ? T.h[k][i] : null);
+  return vals;
+}
+
+// Sparkline (métricas de "Ahora") — 24 puntos, con área, legible
 function renderSpark(host, values, color) {
   if (!host) return;
   host.innerHTML = '';
   const pts = values.filter(v => v != null);
-  if (pts.length < 2) return;
-  const { W, H } = hostSize(host, 160, 30);
+  if (pts.length < 3) return;
+  const { W, H } = hostSize(host, 170, 34);
   let yMin = Math.min(...pts), yMax = Math.max(...pts);
   if (yMax - yMin < 1e-9) { yMax += 1; yMin -= 1; }
-  const xs = i => (i / 23) * (W - 4) + 2;
-  const ys = v => 3 + (1 - (v - yMin) / (yMax - yMin)) * (H - 8);
-  let dPath = '', open = false, lastI = -1;
+  const N = values.length;
+  const xs = i => (i / (N - 1)) * (W - 6) + 3;
+  const ys = v => 4 + (1 - (v - yMin) / (yMax - yMin)) * (H - 10);
+  let dPath = '', open = false, lastI = -1, firstI = -1;
   values.forEach((v, i) => {
     if (v == null) { open = false; return; }
     dPath += (open ? ' L' : (dPath ? ' M' : 'M')) + xs(i).toFixed(1) + ',' + ys(v).toFixed(1);
     open = true; lastI = i;
+    if (firstI < 0) firstI = i;
   });
+  if (!dPath) return;
+  const gid = 'sg' + (++gradSeq);
+  const area = dPath + ` L${xs(lastI).toFixed(1)},${H - 2} L${xs(firstI).toFixed(1)},${H - 2} Z`;
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  let dot = '';
-  if (lastI >= 0) dot = `<circle cx="${xs(lastI).toFixed(1)}" cy="${ys(values[lastI]).toFixed(1)}" r="2.6" fill="${color}"/>`;
-  svg.innerHTML = `<path d="${dPath}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round" opacity="0.85"/>` + dot;
+  svg.innerHTML =
+    `<defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="${color}" stop-opacity="0.02"/></linearGradient></defs>` +
+    `<path d="${area}" fill="url(#${gid})"/>` +
+    `<path d="${dPath}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>` +
+    `<circle cx="${xs(lastI).toFixed(1)}" cy="${ys(values[lastI]).toFixed(1)}" r="2.8" fill="${color}"/>`;
   host.appendChild(svg);
 }
 
-// Curva del diferencial (tarjeta oscura) — estilo dashboard principal
+// Rosa de viento mini — 16 direcciones ponderadas por velocidad (24 h)
+function renderWindRose(host, wVals, dVals) {
+  if (!host) return;
+  host.innerHTML = '';
+  const bins = new Array(16).fill(0);
+  let total = 0;
+  for (let i = 0; i < wVals.length; i++) {
+    if (wVals[i] != null && dVals[i] != null && wVals[i] > 0.1) {
+      bins[Math.round(dVals[i] / 22.5) % 16] += wVals[i];
+      total += wVals[i];
+    }
+  }
+  const size = Math.min(host.clientWidth || 90, host.clientHeight || 90, 96);
+  const cx = size / 2, cy = size / 2, maxR = size / 2 - 10;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+  if (total === 0) {
+    svg.innerHTML = `<circle cx="${cx}" cy="${cy}" r="${maxR}" fill="none" stroke="rgba(44,75,102,0.1)"/>` +
+      `<text x="${cx}" y="${cy + 3}" text-anchor="middle" font-size="8" fill="#B0B9C2" font-weight="700">CALMA</text>`;
+    host.appendChild(svg);
+    return;
+  }
+  const maxBin = Math.max(...bins);
+  let maxIdx = 0;
+  bins.forEach((v, i) => { if (v > bins[maxIdx]) maxIdx = i; });
+  const halfA = (11.25 * Math.PI) / 180;
+  let parts = [maxR * 0.5, maxR].map(r =>
+    `<circle cx="${cx}" cy="${cy}" r="${r.toFixed(1)}" fill="none" stroke="rgba(44,75,102,0.09)" stroke-width="0.8"/>`).join('');
+  bins.forEach((v, i) => {
+    const r = (v / maxBin) * maxR;
+    if (r < 1.2) return;
+    const a = (i * 22.5 * Math.PI) / 180;
+    const x1 = cx + r * Math.sin(a - halfA), y1 = cy - r * Math.cos(a - halfA);
+    const x2 = cx + r * Math.sin(a + halfA), y2 = cy - r * Math.cos(a + halfA);
+    const color = i === maxIdx ? '#E78D70' : 'rgba(231,141,112,0.4)';
+    parts += `<path d="M ${cx} ${cy} L ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r.toFixed(1)} ${r.toFixed(1)} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)} Z" fill="${color}"/>`;
+  });
+  parts += `<text x="${cx}" y="8" text-anchor="middle" font-size="7.5" fill="#7B8A99" font-weight="700">N</text>`;
+  parts += `<circle cx="${cx}" cy="${cy}" r="1.8" fill="#2C4B66"/>`;
+  svg.innerHTML = parts;
+  host.appendChild(svg);
+}
+
+// Curva del diferencial (tarjeta oscura) — línea limpia sobre navy, sin área
 function renderDeltaMini(deltas) {
   const host = $('deltaChart');
   if (!host) return;
   host.innerHTML = '';
   if (!deltas || deltas.length < 2) return;
   const { W, H } = hostSize(host, 356, 80);
-  const padL = 30, padR = 8, padT = 6, padB = 14;
+  const padL = 32, padR = 10, padT = 8, padB = 16;
   const vals = deltas.map(d => d.v);
   let yMin = Math.min(...vals, 0), yMax = Math.max(...vals, 0);
   if (yMax - yMin < 2) { yMax += 1; yMin -= 1; }
-  const span = yMax - yMin; yMin -= span * 0.1; yMax += span * 0.1;
+  const span = yMax - yMin; yMin -= span * 0.12; yMax += span * 0.12;
   const xs = hr => padL + (hr / 23) * (W - padL - padR);
   const ys = v => padT + (1 - (v - yMin) / (yMax - yMin)) * (H - padT - padB);
 
   let g = '';
   const y0 = ys(0);
-  g += `<line x1="${padL}" y1="${y0.toFixed(1)}" x2="${W - padR}" y2="${y0.toFixed(1)}" stroke="rgba(246,244,241,0.45)" stroke-width="1"/>`;
-  g += `<text x="${padL - 5}" y="${(y0 + 3.5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="rgba(246,244,241,0.7)" font-weight="700">0°</text>`;
+  g += `<line x1="${padL}" y1="${y0.toFixed(1)}" x2="${W - padR}" y2="${y0.toFixed(1)}" stroke="rgba(246,244,241,0.4)" stroke-width="1" stroke-dasharray="3 3"/>`;
+  g += `<text x="${padL - 6}" y="${(y0 + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="rgba(246,244,241,0.75)" font-weight="700">0°</text>`;
+  // extremos del eje Y para dar escala
+  g += `<text x="${padL - 6}" y="${(ys(yMax) + 8).toFixed(1)}" text-anchor="end" font-size="9" fill="rgba(246,244,241,0.45)" font-weight="700">${yMax > 0 ? '+' : ''}${Math.round(yMax)}°</text>`;
+  g += `<text x="${padL - 6}" y="${(ys(yMin) - 1).toFixed(1)}" text-anchor="end" font-size="9" fill="rgba(246,244,241,0.45)" font-weight="700">${Math.round(yMin)}°</text>`;
   for (const hr of [0, 6, 12, 18, 23]) {
-    g += `<text x="${xs(hr).toFixed(1)}" y="${H - 2}" text-anchor="middle" font-size="9" fill="rgba(246,244,241,0.5)" font-weight="600">${String(hr).padStart(2, '0')}h</text>`;
+    g += `<text x="${xs(hr).toFixed(1)}" y="${H - 3}" text-anchor="middle" font-size="9" fill="rgba(246,244,241,0.5)" font-weight="600">${String(hr).padStart(2, '0')}h</text>`;
   }
 
-  let dPath = '', first = null, last = null;
+  let dPath = '';
+  let last = null;
   deltas.forEach((d, idx) => {
     dPath += (idx === 0 ? 'M' : ' L') + xs(d.hr).toFixed(1) + ',' + ys(d.v).toFixed(1);
-    if (first == null) first = d.hr;
     last = d;
   });
-  const gid = 'dmg' + (++gradSeq);
-  const area = dPath + ` L${xs(last.hr).toFixed(1)},${y0.toFixed(1)} L${xs(first).toFixed(1)},${y0.toFixed(1)} Z`;
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  svg.innerHTML =
-    `<defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1">
-      <stop offset="0%" stop-color="#F8BC7E" stop-opacity="0.45"/>
-      <stop offset="100%" stop-color="#F8BC7E" stop-opacity="0.02"/></linearGradient></defs>` +
-    g +
-    `<path d="${area}" fill="url(#${gid})"/>` +
-    `<path d="${dPath}" fill="none" stroke="#F8BC7E" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>` +
-    `<circle cx="${xs(last.hr).toFixed(1)}" cy="${ys(last.v).toFixed(1)}" r="3.2" fill="#fff"/>`;
+  svg.innerHTML = g +
+    `<path d="${dPath}" fill="none" stroke="#F8BC7E" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>` +
+    `<circle cx="${xs(last.hr).toFixed(1)}" cy="${ys(last.v).toFixed(1)}" r="3.4" fill="#fff"/>`;
   host.appendChild(svg);
+}
+
+// Curva "día típico" de un período (promedio por hora sobre los días del scope)
+function typicalCurve(key, k, days) {
+  const buckets = Array.from({ length: 24 }, () => []);
+  for (const ymd of days) {
+    const day = BYDAY[key][ymd];
+    if (!day || !day.h || !day.h[k]) continue;
+    for (let i = 0; i < 24; i++) if (day.h[k][i] != null) buckets[i].push(day.h[k][i]);
+  }
+  return buckets.map(b => b.length >= 3 ? mean(b) : null);
+}
+
+// Días del período de comparación, relativo a una fecha de referencia
+function scopeDays(scope, refYmd) {
+  const [ry, rm] = refYmd.split('-').map(Number);
+  const season = seasonOf(rm - 1);
+  const out = [];
+  for (const ymd of Object.keys(BYDAY.renca)) {
+    const [y, m] = ymd.split('-').map(Number);
+    if (scope === 'mes') { if (y === ry && m === rm) out.push(ymd); }
+    else if (scope === 'est') { if (season && season.months.includes(m - 1)) out.push(ymd); }
+    else if (scope === 'anio') { if (y === ry) out.push(ymd); }
+  }
+  return out;
+}
+function scopeLabel(scope, refYmd) {
+  const [y, m] = refYmd.split('-').map(Number);
+  if (scope === 'mes') return 'promedio ' + MESES[m - 1];
+  if (scope === 'est') { const s = seasonOf(m - 1); return 'promedio ' + (s ? s.label : 'estación'); }
+  return 'promedio ' + y;
 }
 
 // ============================================================
@@ -398,11 +500,32 @@ async function renderTab() {
     $('chartTitle').textContent = meta.label + ' · ' +
       (esHoy ? 'hoy, ' + fmtDateEs(ymd, false) : dow.charAt(0) + dow.slice(1).toLowerCase() + ' ' + fmtDateEs(ymd));
 
+    // Isla sin detalle horario ese día pero con promedio diario (solo temp):
+    // línea plana punteada con su promedio, para que no "desaparezca".
+    let islaSeries = null;
+    if (I) {
+      const hourlyCount = I.h[k].filter(v => v != null).length;
+      if (hourlyCount >= 2) {
+        islaSeries = { label: 'Isla de Maipo', color: ST.isla.color, dash: '5 4', values: I.h[k] };
+      } else if (k === 't' && I.all_avg != null) {
+        islaSeries = { label: 'Isla · promedio del día', color: ST.isla.color, dash: '2 4', values: new Array(24).fill(Number(I.all_avg.toFixed(1))) };
+      }
+    }
+    // Comparación con el día típico del período elegido
+    let cmpSeries = null;
+    if (state.cmp) {
+      const curve = typicalCurve('renca', k, scopeDays(state.cmp, ymd));
+      if (curve.some(v => v != null)) {
+        cmpSeries = { label: 'Renca · ' + scopeLabel(state.cmp, ymd), color: '#6E9470', dash: '2 3', values: curve.map(v => v != null ? Number(v.toFixed(2)) : null) };
+      }
+    }
+
     renderSeriesChart(host, {
       n: 24,
       series: [
         R ? { label: 'Renca', color: ST.renca.color, values: R.h[k], hero: true } : null,
-        I ? { label: 'Isla de Maipo', color: ST.isla.color, dash: '5 4', values: I.h[k] } : null
+        islaSeries,
+        cmpSeries
       ].filter(Boolean),
       dec: meta.dec, unit: meta.unit, pillFmt: meta.pill,
       xTickIdx: [0, 6, 12, 18, 23],
@@ -413,10 +536,12 @@ async function renderTab() {
     if (k === 't') {
       const deltas = dayDeltas(ymd);
       const peak = deltas.length ? deltas.reduce((a, b) => b.v > a.v ? b : a) : null;
+      // promedio: horario si alcanza, si no el respaldo con promedios diarios
+      const dAvg = deltas.length >= 6 ? mean(deltas.map(d => d.v)) : pairedDelta(ymd);
       const tMax = R ? (R.all_max != null ? R.all_max : maxOf(R.h.t)) : null;
       const tMin = R ? (R.all_min != null ? R.all_min : minOf(R.h.t)) : null;
       stats.innerHTML =
-        statHtml(deltas.length ? mean(deltas.map(d => d.v)) : null, 'Diferencial promedio', true) +
+        statHtml(dAvg, 'Diferencial promedio', true) +
         statHtml(peak ? peak.v : null, peak ? 'Mayor diferencial · ' + String(peak.hr).padStart(2, '0') + ':00' : 'Mayor diferencial', true) +
         statHtml(tMax != null ? fmt(tMax, 1, '°') : null, 'Máx Renca') +
         statHtml(tMin != null ? fmt(tMin, 1, '°') : null, 'Mín Renca');
@@ -444,12 +569,25 @@ async function renderTab() {
   const avgI = days.map(d => dayVal('isla', d, k));
 
   $('chartTitle').textContent = meta.label + ' media diaria · ' + MESES_CAP[m - 1] + ' ' + y;
+
+  // Comparación: línea de referencia con el promedio del período elegido
+  let cmpSeriesMes = null;
+  if (state.cmp) {
+    const ref = days[Math.floor(days.length / 2)] || (ym + '-15');
+    const sdays = scopeDays(state.cmp, ref);
+    const scopeMean = mean(sdays.map(d => dayVal('renca', d, k)));
+    if (scopeMean != null) {
+      cmpSeriesMes = { label: 'Renca · ' + scopeLabel(state.cmp, ref), color: '#6E9470', dash: '2 3', values: new Array(days.length).fill(Number(scopeMean.toFixed(2))) };
+    }
+  }
+
   renderSeriesChart(host, {
     n: days.length,
     series: [
       { label: 'Renca', color: ST.renca.color, values: avgR, hero: true },
-      { label: 'Isla de Maipo', color: ST.isla.color, dash: '5 4', values: avgI }
-    ],
+      { label: 'Isla de Maipo', color: ST.isla.color, dash: '5 4', values: avgI },
+      cmpSeriesMes
+    ].filter(Boolean),
     dec: meta.dec, unit: meta.unit, pillFmt: meta.pill,
     xTickIdx: [0, Math.floor((days.length - 1) / 2), days.length - 1].filter((v, i, a) => a.indexOf(v) === i),
     xTickFmt: i => fmtDateShort(days[i]),
@@ -565,10 +703,11 @@ async function updateNow() {
       fill.style.width = Math.max(1, pct(R.all_max) - pct(R.all_min)) + '%';
       if (rnc && rnc.t != null) $('rncRangePin').style.left = pct(rnc.t) + '%';
     }
-    renderSpark($('sparkHum'), R.h.h, '#5E989E');
-    renderSpark($('sparkRad'), R.h.r, '#DCA45E');
-    renderSpark($('sparkWind'), R.h.w, '#6E9470');
   }
+  // Sparklines + rosa de viento: últimas 24 h (ayer + hoy)
+  renderSpark($('sparkHum'), last24h('renca', 'h'), '#5E989E');
+  renderSpark($('sparkRad'), last24h('renca', 'r'), '#DCA45E');
+  renderWindRose($('windRose'), last24h('renca', 'w'), last24h('renca', 'd'));
   const deltas = dayDeltas(today);
   if (deltas.length) {
     $('deltaAvgHoy').textContent = fmtSigned(mean(deltas.map(d => d.v)), 1);
@@ -789,6 +928,7 @@ async function init() {
     state.varKey = b.dataset.var;
     renderTab();
   }));
+  $('cmpSel').addEventListener('change', () => { state.cmp = $('cmpSel').value; renderTab(); });
 
   initMap();
   renderYear();

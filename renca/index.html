@@ -9,7 +9,7 @@
 <meta property="og:description" content="Isla de calor urbana en Renca, en vivo y día a día: temperatura, humedad, radiación y viento comparados con la referencia rural de Isla de Maipo.">
 <meta property="og:type" content="website">
 <link rel="stylesheet" href="../libs/leaflet/leaflet.css">
-<link rel="stylesheet" href="renca.css?v=2.2">
+<link rel="stylesheet" href="renca.css?v=2.3">
 </head>
 <body>
 
@@ -56,20 +56,22 @@
         <div class="nr-caption">escala 0 – 35°</div>
         <div class="now-metrics">
           <div class="nm">
-            <span class="nm-v" id="rncHum">—</span><span class="nm-l">Humedad %</span>
+            <span class="nm-v" id="rncHum">—</span><span class="nm-l">Humedad % · últimas 24 h</span>
             <div class="nm-spark" id="sparkHum"></div>
           </div>
           <div class="nm">
-            <span class="nm-v" id="rncRad">—</span><span class="nm-l">Radiación W/m²</span>
+            <span class="nm-v" id="rncRad">—</span><span class="nm-l">Radiación W/m² · últimas 24 h</span>
             <div class="nm-spark" id="sparkRad"></div>
           </div>
-          <div class="nm">
-            <span class="nm-v" id="rncWind">—</span><span class="nm-l">Viento m/s</span>
-            <div class="nm-spark" id="sparkWind"></div>
-          </div>
-          <div class="nm">
-            <span class="nm-v" id="rncDir">—</span><span class="nm-l">Dirección del viento</span>
-            <div class="nm-spark nm-spark-empty">últimas 24 h →</div>
+          <div class="nm nm-wind">
+            <div class="nm-wind-left">
+              <span class="nm-v" id="rncWind">—</span><span class="nm-l">Viento m/s</span>
+              <span class="nm-v nm-dir" id="rncDir">—</span><span class="nm-l">Dirección actual</span>
+            </div>
+            <div class="wind-rose-wrap">
+              <div class="wind-rose" id="windRose"></div>
+              <span class="nm-l">Rosa de viento · 24 h</span>
+            </div>
           </div>
         </div>
       </section>
@@ -89,6 +91,12 @@
               <button class="date-arrow" id="diaNext" aria-label="Día siguiente">›</button>
             </div>
             <select id="ctlMes" class="select" hidden></select>
+            <select id="cmpSel" class="select" title="Comparar con un período">
+              <option value="">Sin comparación</option>
+              <option value="mes">vs promedio mensual</option>
+              <option value="est">vs promedio estacional</option>
+              <option value="anio">vs promedio anual</option>
+            </select>
           </div>
         </div>
         <div class="chart-title-row">
@@ -122,13 +130,11 @@
         </section>
         <section class="card isla-card">
           <div class="card-kicker"><span>★ Isla de Maipo</span><span class="status" id="islStatus">—</span></div>
-          <div class="isla-row">
-            <div class="isla-temp" id="islTemp">—</div>
-            <div class="isla-metrics">
-              <div class="nm"><span class="nm-v" id="islHum">—</span><span class="nm-l">HR %</span></div>
-              <div class="nm"><span class="nm-v" id="islRad">—</span><span class="nm-l">Rad W/m²</span></div>
-              <div class="nm"><span class="nm-v" id="islWind">—</span><span class="nm-l">Viento m/s</span></div>
-            </div>
+          <div class="isla-temp" id="islTemp">—</div>
+          <div class="isla-metrics">
+            <div class="nm"><span class="nm-v" id="islHum">—</span><span class="nm-l">Humedad %</span></div>
+            <div class="nm"><span class="nm-v" id="islRad">—</span><span class="nm-l">Radiación W/m²</span></div>
+            <div class="nm"><span class="nm-v" id="islWind">—</span><span class="nm-l">Viento m/s</span></div>
           </div>
           <p class="isla-note">Referencia rural · 45 km al suroeste de Santiago</p>
         </section>
@@ -140,7 +146,6 @@
           <span>Diferencial de temperatura Renca − Isla de Maipo · día a día</span>
           <span class="cal-head-right">
             <select id="anioSelect" class="select slim"></select>
-            <span class="cal-legend"><span>−5°</span><span class="cal-legend-bar"></span><span>+5°</span></span>
           </span>
         </div>
         <div class="cal-body">
@@ -150,7 +155,10 @@
               <div class="cal-days" aria-hidden="true"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
               <div class="cal-grid" id="calGrid"></div>
             </div>
-            <div class="cal-caption">Cada columna es una semana · rojo = Renca más calurosa que el campo · azul = más fría · clic en un día para explorarlo</div>
+            <div class="cal-caption">
+              <span>Cada columna es una semana · rojo = Renca más calurosa que el campo · azul = más fría · clic en un día para explorarlo</span>
+              <span class="cal-legend"><span>−5°</span><span class="cal-legend-bar"></span><span>+5°</span></span>
+            </div>
           </div>
           <div class="cal-records">
             <div class="rec-card rec-delta">
@@ -178,13 +186,13 @@
     <!-- ======= FOOTER ======= -->
     <footer class="rb-footer">
       <span>MUC · GEAF UC · Pontificia Universidad Católica de Chile · FONDECYT Nº 1241886</span>
-      <span class="version">Renca v2.2 · 2026-10-21</span>
+      <span class="version">Renca v2.3 · 2026-10-21</span>
     </footer>
 
   </div>
 </div>
 
 <script src="../libs/leaflet/leaflet.js"></script>
-<script src="renca.js?v=2.2"></script>
+<script src="renca.js?v=2.3"></script>
 </body>
 </html>
