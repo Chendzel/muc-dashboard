@@ -204,6 +204,25 @@ html, body {
 }
 .nm-spark { height: 36px; margin-top: 8px; }
 .nm-spark svg { display: block; width: 100%; height: 100%; }
+/* Barras de rango de las métricas (como la de temperatura, en chico) */
+.nm-range {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.mr-num { font-family: var(--font-head); font-size: 12px; font-weight: 700; color: var(--text-mute); }
+.mr-bar {
+  position: relative; flex: 1; height: 6px; border-radius: 3px;
+  background: rgba(44,75,102,0.1);
+}
+.mr-fill { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+.nm-hum .mr-fill { background: rgba(94,152,158,0.55); }
+.nm-rad .mr-fill { background: rgba(220,164,94,0.55); }
+.mr-pin {
+  position: absolute; top: 50%; width: 11px; height: 11px; border-radius: 50%;
+  background: #fff; border: 3px solid var(--navy);
+  transform: translate(-50%, -50%);
+}
 .nm-wind {
   grid-column: 1 / -1;
   flex-direction: row; align-items: center; justify-content: space-between;
@@ -342,8 +361,7 @@ html, body {
   margin: 4px 0 2px;
 }
 .delta-big.neg { color: var(--teal); }
-.delta-sub { font-size: 11px; color: rgba(246,244,241,0.65); letter-spacing: 1px; text-transform: uppercase; font-weight: 700; margin-bottom: 6px; }
-.delta-chart { flex: 1; min-height: 70px; }
+.delta-chart { flex: 1; min-height: 110px; margin-top: 6px; }
 .delta-chart svg { display: block; width: 100%; height: 100%; }
 .delta-row { display: flex; gap: 34px; padding-top: 12px; }
 .dr { display: flex; flex-direction: column; }
@@ -381,6 +399,15 @@ html, body {
 .cal-body { display: flex; gap: 22px; flex: 1; min-height: 0; }
 .cal-main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .cal-records { width: 250px; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; }
+.rec-year {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 0 4px;
+}
+.rec-year-lbl {
+  font-family: var(--font-head);
+  font-size: 11px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase;
+  color: var(--text-mute);
+}
 .cal-head-right { display: flex; align-items: center; gap: 14px; }
 .cal-legend {
   display: flex; align-items: center; gap: 8px;

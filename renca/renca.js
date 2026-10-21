@@ -266,8 +266,8 @@ function renderSeriesChart(host, opts) {
         if (iMin < 0 || v < s.values[iMin]) iMin = i;
       });
       const fmtP = pillFmt || (v => fmt(v, dec, ''));
-      if (iMax >= 0) pills += pillSvg(Math.min(Math.max(xs(iMax), padL + 30), W - padR - 30), ys(s.values[iMax]), fmtP(s.values[iMax]), true, s.color, H - padB);
-      if (iMin >= 0 && iMin !== iMax) pills += pillSvg(Math.min(Math.max(xs(iMin), padL + 30), W - padR - 30), ys(s.values[iMin]), fmtP(s.values[iMin]), false, s.color, H - padB);
+      if (iMax >= 0) pills += pillSvg(Math.min(Math.max(xs(iMax), padL + 44), W - padR - 44), ys(s.values[iMax]), 'MÁX · ' + fmtP(s.values[iMax]), true, s.color, H - padB);
+      if (iMin >= 0 && iMin !== iMax) pills += pillSvg(Math.min(Math.max(xs(iMin), padL + 44), W - padR - 44), ys(s.values[iMin]), 'MÍN · ' + fmtP(s.values[iMin]), false, s.color, H - padB);
     }
   }
 
@@ -394,8 +394,8 @@ function renderDeltaMini(deltas) {
   if (!host) return;
   host.innerHTML = '';
   if (!deltas || deltas.length < 2) return;
-  const { W, H } = hostSize(host, 356, 80);
-  const padL = 32, padR = 10, padT = 8, padB = 16;
+  const { W, H } = hostSize(host, 356, 120);
+  const padL = 42, padR = 12, padT = 12, padB = 20;
   const vals = deltas.map(d => d.v);
   let yMin = Math.min(...vals, 0), yMax = Math.max(...vals, 0);
   if (yMax - yMin < 2) { yMax += 1; yMin -= 1; }
@@ -406,12 +406,17 @@ function renderDeltaMini(deltas) {
   let g = '';
   const y0 = ys(0);
   g += `<line x1="${padL}" y1="${y0.toFixed(1)}" x2="${W - padR}" y2="${y0.toFixed(1)}" stroke="rgba(246,244,241,0.4)" stroke-width="1" stroke-dasharray="3 3"/>`;
-  g += `<text x="${padL - 6}" y="${(y0 + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="rgba(246,244,241,0.75)" font-weight="700">0°</text>`;
-  // extremos del eje Y para dar escala
-  g += `<text x="${padL - 6}" y="${(ys(yMax) + 8).toFixed(1)}" text-anchor="end" font-size="9" fill="rgba(246,244,241,0.45)" font-weight="700">${yMax > 0 ? '+' : ''}${Math.round(yMax)}°</text>`;
-  g += `<text x="${padL - 6}" y="${(ys(yMin) - 1).toFixed(1)}" text-anchor="end" font-size="9" fill="rgba(246,244,241,0.45)" font-weight="700">${Math.round(yMin)}°</text>`;
+  g += `<text x="${padL - 8}" y="${(y0 + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="rgba(246,244,241,0.85)" font-weight="700">0°</text>`;
+  // extremos del eje Y, solo si no chocan con el 0°
+  const yTop = ys(yMax), yBot = ys(yMin);
+  if (Math.abs(yTop + 9 - y0) > 16) {
+    g += `<text x="${padL - 8}" y="${(yTop + 9).toFixed(1)}" text-anchor="end" font-size="11" fill="rgba(246,244,241,0.55)" font-weight="700">${yMax > 0 ? '+' : ''}${Math.round(yMax)}°</text>`;
+  }
+  if (Math.abs(yBot - 2 - y0) > 16) {
+    g += `<text x="${padL - 8}" y="${(yBot - 2).toFixed(1)}" text-anchor="end" font-size="11" fill="rgba(246,244,241,0.55)" font-weight="700">${Math.round(yMin)}°</text>`;
+  }
   for (const hr of [0, 6, 12, 18, 23]) {
-    g += `<text x="${xs(hr).toFixed(1)}" y="${H - 3}" text-anchor="middle" font-size="9" fill="rgba(246,244,241,0.5)" font-weight="600">${String(hr).padStart(2, '0')}h</text>`;
+    g += `<text x="${xs(hr).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="10.5" fill="rgba(246,244,241,0.55)" font-weight="600">${String(hr).padStart(2, '0')}h</text>`;
   }
 
   let dPath = '';
@@ -423,8 +428,8 @@ function renderDeltaMini(deltas) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.innerHTML = g +
-    `<path d="${dPath}" fill="none" stroke="#F8BC7E" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>` +
-    `<circle cx="${xs(last.hr).toFixed(1)}" cy="${ys(last.v).toFixed(1)}" r="3.4" fill="#fff"/>`;
+    `<path d="${dPath}" fill="none" stroke="#F8BC7E" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>` +
+    `<circle cx="${xs(last.hr).toFixed(1)}" cy="${ys(last.v).toFixed(1)}" r="3.6" fill="#fff"/>`;
   host.appendChild(svg);
 }
 
@@ -516,7 +521,7 @@ async function renderTab() {
     if (state.cmp) {
       const curve = typicalCurve('renca', k, scopeDays(state.cmp, ymd));
       if (curve.some(v => v != null)) {
-        cmpSeries = { label: 'Renca · ' + scopeLabel(state.cmp, ymd), color: '#6E9470', dash: '2 3', values: curve.map(v => v != null ? Number(v.toFixed(2)) : null) };
+        cmpSeries = { label: 'Renca · ' + scopeLabel(state.cmp, ymd), color: '#2C4B66', dash: '2 3', values: curve.map(v => v != null ? Number(v.toFixed(2)) : null) };
       }
     }
 
@@ -577,7 +582,7 @@ async function renderTab() {
     const sdays = scopeDays(state.cmp, ref);
     const scopeMean = mean(sdays.map(d => dayVal('renca', d, k)));
     if (scopeMean != null) {
-      cmpSeriesMes = { label: 'Renca · ' + scopeLabel(state.cmp, ref), color: '#6E9470', dash: '2 3', values: new Array(days.length).fill(Number(scopeMean.toFixed(2))) };
+      cmpSeriesMes = { label: 'Renca · ' + scopeLabel(state.cmp, ref), color: '#2C4B66', dash: '2 3', values: new Array(days.length).fill(Number(scopeMean.toFixed(2))) };
     }
   }
 
@@ -662,13 +667,6 @@ async function updateNow() {
 
   if (rnc) {
     if (rnc.t != null) $('rncTemp').textContent = Math.round(rnc.t) + '°';
-    const tr = $('rncTrend');
-    if (rnc.tTrend != null) {
-      tr.hidden = false;
-      tr.textContent = (rnc.tTrend >= 0 ? '↑' : '↓') + ' ' + Math.abs(rnc.tTrend).toFixed(1) + '° en la última lectura';
-      tr.classList.toggle('up', rnc.tTrend >= 0);
-      tr.classList.toggle('down', rnc.tTrend < 0);
-    }
     $('rncHum').textContent = rnc.h != null ? Math.round(rnc.h) : '—';
     $('rncRad').textContent = rnc.r != null ? Math.round(rnc.r) : '—';
     $('rncWind').textContent = rnc.w != null ? rnc.w.toFixed(1) : '—';
@@ -703,10 +701,37 @@ async function updateNow() {
       fill.style.width = Math.max(1, pct(R.all_max) - pct(R.all_min)) + '%';
       if (rnc && rnc.t != null) $('rncRangePin').style.left = pct(rnc.t) + '%';
     }
+    // Tendencia vs HACE UNA HORA (promedio horario anterior de hoy)
+    const tr = $('rncTrend');
+    const curHr = new Date().getHours();
+    let prevHourVal = null;
+    for (let i = curHr - 1; i >= Math.max(0, curHr - 3); i--) {
+      if (R.h.t[i] != null) { prevHourVal = R.h.t[i]; break; }
+    }
+    if (rnc && rnc.t != null && prevHourVal != null) {
+      const diff = rnc.t - prevHourVal;
+      tr.hidden = false;
+      tr.textContent = (diff >= 0 ? '↑' : '↓') + ' ' + Math.abs(diff).toFixed(1) + '° vs hace una hora';
+      tr.classList.toggle('up', diff >= 0);
+      tr.classList.toggle('down', diff < 0);
+    }
+    // Barras de rango de hoy: humedad (0–100) y radiación (0–máx del día)
+    const setRange = (vals, cur, fillId, pinId, minId, maxId, scaleMin, scaleMax, dec) => {
+      const lo = minOf(vals), hi = maxOf(vals);
+      if (lo == null || hi == null) return;
+      $(minId).textContent = fmt(lo, dec, '');
+      $(maxId).textContent = fmt(hi, dec, '');
+      const pct = v => Math.max(0, Math.min(100, (v - scaleMin) / (scaleMax - scaleMin) * 100));
+      const f = $(fillId);
+      f.style.left = pct(lo) + '%';
+      f.style.width = Math.max(1.5, pct(hi) - pct(lo)) + '%';
+      if (cur != null) $(pinId).style.left = pct(cur) + '%';
+    };
+    setRange(R.h.h, rnc && rnc.h, 'humFill', 'humPin', 'humMin', 'humMax', 0, 100, 0);
+    const radTop = Math.max(1100, (maxOf(R.h.r) || 0) * 1.08, (rnc && rnc.r) || 0);
+    setRange(R.h.r, rnc && rnc.r, 'radFill', 'radPin', 'radMin', 'radMax', 0, radTop, 0);
   }
-  // Sparklines + rosa de viento: últimas 24 h (ayer + hoy)
-  renderSpark($('sparkHum'), last24h('renca', 'h'), '#5E989E');
-  renderSpark($('sparkRad'), last24h('renca', 'r'), '#DCA45E');
+  // Rosa de viento: últimas 24 h (ayer + hoy)
   renderWindRose($('windRose'), last24h('renca', 'w'), last24h('renca', 'd'));
   const deltas = dayDeltas(today);
   if (deltas.length) {
