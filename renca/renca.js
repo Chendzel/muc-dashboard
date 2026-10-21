@@ -84,7 +84,7 @@ function deltaColor(delta) {
   if (delta < -3) return '#3E647A';
   if (delta < -1.5) return '#7DA6BB';
   if (delta < -0.5) return '#B4D4E0';
-  if (delta < 0.5) return '#F4F4F4';
+  if (delta < 0.5) return '#D9E6D5'; // sage suave = diferencia ≈ 0 (distinto del gris "sin datos")
   if (delta < 2) return '#F8E0CE';
   if (delta < 3.5) return '#F8BC7E';
   if (delta < 4.5) return '#E78D70';
@@ -889,7 +889,11 @@ function renderYear() {
           cell.dataset.tip = `<strong>${fmtDateEs(ymd)}</strong><br>Diferencial ${fmtSigned(delta, 1)} · Renca ${fmt(tR, 1, '°')} · Isla ${fmt(tI, 1, '°')}`;
           cell.dataset.ymd = ymd;
         } else if (tR != null) {
-          cell.style.background = 'rgba(123,138,153,0.25)';
+          cell.classList.add('nodata'); // rayado: hay día pero falta la contraparte
+          // Ventana de manutención de Isla de Maipo (actualización de equipo, ene-2026)
+          const enManutencion = ymd >= '2026-01-12' && ymd <= '2026-01-21';
+          cell.dataset.tip = `<strong>${fmtDateEs(ymd)}</strong><br>` +
+            (enManutencion ? 'Sin datos · Estación en manutención' : 'Sin datos este día');
         }
       }
       grid.appendChild(cell);

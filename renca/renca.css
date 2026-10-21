@@ -431,7 +431,7 @@ html, body {
 }
 .cal-legend-bar {
   width: 120px; height: 9px; border-radius: 5px; display: inline-block;
-  background: linear-gradient(90deg, #3E647A, #7DA6BB, #B4D4E0, #F4F4F4, #F8E0CE, #F8BC7E, #E78D70, #D26852);
+  background: linear-gradient(90deg, #3E647A, #7DA6BB, #B4D4E0, #D9E6D5, #F8E0CE, #F8BC7E, #E78D70, #D26852);
 }
 .cal-months {
   display: grid; grid-template-columns: repeat(12, 1fr);
@@ -464,6 +464,9 @@ html, body {
   min-width: 0; min-height: 0;
 }
 .cal-cell.hasdata { cursor: pointer; transition: transform 0.1s ease; }
+.cal-cell.nodata {
+  background: repeating-linear-gradient(45deg, rgba(123,138,153,0.35) 0 2.5px, rgba(123,138,153,0.08) 2.5px 6px);
+}
 .cal-cell.hasdata:hover { transform: scale(1.35); outline: 2px solid var(--navy); z-index: 2; }
 .cal-caption {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
