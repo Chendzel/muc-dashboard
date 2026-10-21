@@ -26,8 +26,12 @@ const VAR_META = {
   t: { label: 'Temperatura', unit: '°C', dec: 1, pill: v => v.toFixed(1) + '°' },
   h: { label: 'Humedad relativa', unit: '%', dec: 0, pill: v => Math.round(v) + '%' },
   r: { label: 'Radiación global', unit: 'W/m²', dec: 0, pill: v => Math.round(v) },
-  w: { label: 'Viento', unit: 'm/s', dec: 1, pill: v => v.toFixed(1) }
+  w: { label: 'Viento', unit: 'km/h', dec: 1, pill: v => v.toFixed(1) }
 };
+
+// El sensor entrega m/s; en pantalla todo el viento va en km/h (uso meteorológico)
+const toKmh = v => v == null ? null : v * 3.6;
+const varVals = (k, arr) => k === 'w' ? arr.map(toKmh) : arr;
 
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const MESES_CAP = MESES.map(m => m[0].toUpperCase() + m.slice(1));
@@ -187,6 +191,9 @@ function computeScales() {
     FIXED.dia[k] = [Math.floor(q(all, 0.002) - 1), Math.ceil(q(all, 0.998) + 1)];
     FIXED.mes[k] = [Math.floor(daily[0] - 1), Math.ceil(daily[daily.length - 1] + 1)];
   }
+  // El viento se muestra en km/h → convertir sus escalas (calculadas en m/s)
+  if (FIXED.dia.w) FIXED.dia.w = [0, Math.ceil(FIXED.dia.w[1] * 3.6)];
+  if (FIXED.mes.w) FIXED.mes.w = [0, Math.ceil(FIXED.mes.w[1] * 3.6)];
 }
 
 function pairedDelta(ymd) {
@@ -252,8 +259,11 @@ function renderSeriesChart(host, opts) {
   }
   let yMin, yMax;
   if (opts.yFix) {
-    // Escala fija (comparable entre días/meses)
-    yMin = opts.yFix[0]; yMax = opts.yFix[1];
+    // Escala fija (comparable entre días/meses) — pero si los datos la exceden
+    // (p.ej. una racha fuera del percentil anual), se expande para no cortarlos.
+    const dMin = Math.min(...allVals), dMax = Math.max(...allVals);
+    yMin = Math.min(opts.yFix[0], Math.floor(dMin));
+    yMax = Math.max(opts.yFix[1], Math.ceil(dMax * 1.04));
   } else {
     yMin = Math.min(...allVals); yMax = Math.max(...allVals);
     if (yMax - yMin < 1e-9) { yMax += 1; yMin -= 1; }
@@ -549,7 +559,7 @@ async function renderTab() {
     if (I) {
       const hourlyCount = I.h[k].filter(v => v != null).length;
       if (hourlyCount >= 2) {
-        islaSeries = { label: 'Isla de Maipo', color: ST.isla.color, dash: '5 4', values: I.h[k] };
+        islaSeries = { label: 'Isla de Maipo', color: ST.isla.color, dash: '5 4', values: varVals(k, I.h[k]) };
       } else if (k === 't' && I.all_avg != null) {
         islaSeries = { label: 'Isla · promedio del día', color: ST.isla.color, dash: '2 4', values: new Array(24).fill(Number(I.all_avg.toFixed(1))) };
       }
@@ -557,7 +567,7 @@ async function renderTab() {
     // Comparación con el día típico del período elegido
     let cmpSeries = null;
     if (state.cmp) {
-      const curve = typicalCurve('renca', k, scopeDays(state.cmp, ymd));
+      const curve = varVals(k, typicalCurve('renca', k, scopeDays(state.cmp, ymd)));
       if (curve.some(v => v != null)) {
         cmpSeries = { label: 'Renca · ' + scopeLabel(state.cmp, ymd), color: '#2C4B66', dash: '2 3', values: curve.map(v => v != null ? Number(v.toFixed(2)) : null) };
       }
@@ -566,7 +576,7 @@ async function renderTab() {
     renderSeriesChart(host, {
       n: 24,
       series: [
-        R ? { label: 'Renca', color: ST.renca.color, values: R.h[k], hero: true } : null,
+        R ? { label: 'Renca', color: ST.renca.color, values: varVals(k, R.h[k]), hero: true } : null,
         islaSeries,
         cmpSeries
       ].filter(Boolean),
@@ -590,12 +600,13 @@ async function renderTab() {
         statHtml(tMax != null ? fmt(tMax, 1, '°') : null, 'Máx Renca') +
         statHtml(tMin != null ? fmt(tMin, 1, '°') : null, 'Mín Renca');
     } else {
-      const vR = R ? R.h[k] : [];
+      const vR = R ? varVals(k, R.h[k]) : [];
+      const vI = I ? varVals(k, I.h[k]) : [];
       stats.innerHTML =
         statHtml(mean(vR) != null ? fmt(mean(vR), meta.dec, ' ' + meta.unit) : null, 'Prom Renca') +
         statHtml(maxOf(vR) != null ? fmt(maxOf(vR), meta.dec, '') : null, 'Máx Renca') +
         statHtml(minOf(vR) != null ? fmt(minOf(vR), meta.dec, '') : null, 'Mín Renca') +
-        statHtml(I && mean(I.h[k]) != null ? fmt(mean(I.h[k]), meta.dec, ' ' + meta.unit) : null, 'Prom Isla');
+        statHtml(mean(vI) != null ? fmt(mean(vI), meta.dec, ' ' + meta.unit) : null, 'Prom Isla');
     }
     return;
   }
@@ -609,8 +620,8 @@ async function renderTab() {
     const ymd = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     if (ymd <= today) days.push(ymd);
   }
-  const avgR = days.map(d => dayVal('renca', d, k));
-  const avgI = days.map(d => dayVal('isla', d, k));
+  const avgR = varVals(k, days.map(d => dayVal('renca', d, k)));
+  const avgI = varVals(k, days.map(d => dayVal('isla', d, k)));
 
   $('chartTitle').textContent = meta.label + ' media diaria · ' + MESES_CAP[m - 1] + ' ' + y;
 
@@ -754,7 +765,7 @@ async function updateNow() {
     if (rnc.t != null) $('rncTemp').textContent = Math.round(rnc.t) + '°';
     $('rncHum').textContent = rnc.h != null ? Math.round(rnc.h) : '—';
     $('rncRad').textContent = rnc.r != null ? Math.round(rnc.r) : '—';
-    $('rncWind').textContent = rnc.w != null ? rnc.w.toFixed(1) : '—';
+    $('rncWind').textContent = rnc.w != null ? (rnc.w * 3.6).toFixed(1) : '—';
     $('rncDir').textContent = rnc.d != null ? degToCompassEs(rnc.d) + ' · ' + Math.round(rnc.d) + '°' : '—';
   }
   updateCondition(rnc);
@@ -762,7 +773,7 @@ async function updateNow() {
     if (isl.t != null) $('islTemp').textContent = Math.round(isl.t) + '°';
     $('islHum').textContent = isl.h != null ? Math.round(isl.h) : '—';
     $('islRad').textContent = isl.r != null ? Math.round(isl.r) : '—';
-    $('islWind').textContent = isl.w != null ? isl.w.toFixed(1) : '—';
+    $('islWind').textContent = isl.w != null ? (isl.w * 3.6).toFixed(1) : '—';
   }
   let dNow = null;
   if (rnc && isl && rnc.t != null && isl.t != null) {
