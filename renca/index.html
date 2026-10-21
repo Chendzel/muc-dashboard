@@ -22,8 +22,8 @@
         <div class="logo-geaf"></div>
         <div class="logo-muc"></div>
         <div class="brand-text">
-          <h1>Estación Renca</h1>
-          <p>Microclimas Urbanos y Confort · Santiago de Chile</p>
+          <h1>Microclimas Urbanos y Confort</h1>
+          <p>Estación Renca · Santiago de Chile</p>
           <div class="fondecyt">GEAF UC · FONDECYT Nº 1241886</div>
         </div>
       </div>
@@ -35,6 +35,7 @@
         <div class="clock">
           <div class="time" id="clockTime">--:--</div>
           <div class="date" id="clockDate">—</div>
+          <div class="updated" id="lastUpdate">·</div>
         </div>
       </div>
     </header>
@@ -45,18 +46,31 @@
       <!-- A1 · Ahora -->
       <section class="card now-card">
         <div class="card-kicker"><span>Ahora · Renca</span><span class="status" id="rncStatus">—</span></div>
-        <div class="now-temp"><span id="rncTemp">—</span><span class="trend" id="rncTrend"></span></div>
+        <div class="now-temp"><span id="rncTemp">—</span></div>
+        <div class="trend-chip" id="rncTrend" hidden></div>
         <div class="now-range">
-          <span class="nr-num" id="rncMin">—</span>
+          <div class="nr-end"><span class="nr-num" id="rncMin">—</span><span class="nr-lbl">Mín hoy</span></div>
           <div class="nr-bar"><div class="nr-fill" id="rncRangeFill"></div><div class="nr-pin" id="rncRangePin"></div></div>
-          <span class="nr-num" id="rncMax">—</span>
+          <div class="nr-end right"><span class="nr-num" id="rncMax">—</span><span class="nr-lbl">Máx hoy</span></div>
         </div>
-        <div class="nr-caption">rango de hoy · escala 0–35°</div>
+        <div class="nr-caption">escala 0 – 35°</div>
         <div class="now-metrics">
-          <div class="nm"><span class="nm-v" id="rncHum">—</span><span class="nm-l">Humedad %</span></div>
-          <div class="nm"><span class="nm-v" id="rncRad">—</span><span class="nm-l">Radiación W/m²</span></div>
-          <div class="nm"><span class="nm-v" id="rncWind">—</span><span class="nm-l">Viento m/s</span></div>
-          <div class="nm"><span class="nm-v" id="rncDir">—</span><span class="nm-l">Dirección</span></div>
+          <div class="nm">
+            <span class="nm-v" id="rncHum">—</span><span class="nm-l">Humedad %</span>
+            <div class="nm-spark" id="sparkHum"></div>
+          </div>
+          <div class="nm">
+            <span class="nm-v" id="rncRad">—</span><span class="nm-l">Radiación W/m²</span>
+            <div class="nm-spark" id="sparkRad"></div>
+          </div>
+          <div class="nm">
+            <span class="nm-v" id="rncWind">—</span><span class="nm-l">Viento m/s</span>
+            <div class="nm-spark" id="sparkWind"></div>
+          </div>
+          <div class="nm">
+            <span class="nm-v" id="rncDir">—</span><span class="nm-l">Dirección del viento</span>
+            <div class="nm-spark nm-spark-empty">últimas 24 h →</div>
+          </div>
         </div>
       </section>
 
@@ -79,10 +93,16 @@
         </div>
         <div class="chart-title-row">
           <span class="ct-title" id="chartTitle">—</span>
-          <span class="ct-legend">
-            <span class="lg-item"><span class="lg-swatch renca"></span>Renca</span>
-            <span class="lg-item"><span class="lg-swatch isla"></span>Isla de Maipo</span>
-          </span>
+          <div class="var-chips" role="tablist">
+            <button class="vchip active" data-var="t">Temperatura</button>
+            <button class="vchip" data-var="h">Humedad</button>
+            <button class="vchip" data-var="r">Radiación</button>
+            <button class="vchip" data-var="w">Viento</button>
+          </div>
+        </div>
+        <div class="chart-legend">
+          <span class="lg-item"><span class="lg-swatch renca"></span>Renca</span>
+          <span class="lg-item"><span class="lg-swatch isla"></span>Isla de Maipo</span>
         </div>
         <div class="chart-host" id="mainChart"></div>
         <div class="chart-stats" id="chartStats"></div>
@@ -91,9 +111,10 @@
       <!-- A3 · Δ + referencia -->
       <div class="col-right">
         <section class="card delta-card">
-          <div class="card-kicker dark"><span>Δ Urbano − Rural</span><span class="sub">ahora</span></div>
+          <div class="card-kicker dark"><span>Diferencial urbano − rural</span><span class="sub">ahora</span></div>
           <div class="delta-big" id="deltaNow">—</div>
-          <p class="delta-sub">Renca comparada con la referencia rural de Isla de Maipo, en este momento.</p>
+          <p class="delta-sub">Renca − Isla de Maipo · hoy, hora a hora</p>
+          <div class="delta-chart" id="deltaChart"></div>
           <div class="delta-row">
             <div class="dr"><span class="dr-v" id="deltaAvgHoy">—</span><span class="dr-l">Prom hoy</span></div>
             <div class="dr"><span class="dr-v" id="deltaMaxHoy">—</span><span class="dr-l" id="deltaMaxHoyLbl">Máx hoy</span></div>
@@ -105,18 +126,18 @@
             <div class="isla-temp" id="islTemp">—</div>
             <div class="isla-metrics">
               <div class="nm"><span class="nm-v" id="islHum">—</span><span class="nm-l">HR %</span></div>
-              <div class="nm"><span class="nm-v" id="islRad">—</span><span class="nm-l">Rad</span></div>
-              <div class="nm"><span class="nm-v" id="islWind">—</span><span class="nm-l">Viento</span></div>
+              <div class="nm"><span class="nm-v" id="islRad">—</span><span class="nm-l">Rad W/m²</span></div>
+              <div class="nm"><span class="nm-v" id="islWind">—</span><span class="nm-l">Viento m/s</span></div>
             </div>
           </div>
-          <p class="isla-note">Referencia rural · 45 km al suroeste</p>
+          <p class="isla-note">Referencia rural · 45 km al suroeste de Santiago</p>
         </section>
       </div>
 
       <!-- B1 · Calendario anual + récords -->
       <section class="card cal-card">
         <div class="card-kicker">
-          <span>El año, día a día · Δ diario Renca − Isla</span>
+          <span>Diferencial de temperatura Renca − Isla de Maipo · día a día</span>
           <span class="cal-head-right">
             <select id="anioSelect" class="select slim"></select>
             <span class="cal-legend"><span>−5°</span><span class="cal-legend-bar"></span><span>+5°</span></span>
@@ -125,12 +146,15 @@
         <div class="cal-body">
           <div class="cal-main">
             <div class="cal-months" id="calMonths"></div>
-            <div class="cal-grid" id="calGrid"></div>
-            <div class="cal-caption">Cada celda es un día · rojo = Renca más calurosa que el campo · azul = más fría · clic en un día para explorarlo</div>
+            <div class="cal-rows">
+              <div class="cal-days" aria-hidden="true"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+              <div class="cal-grid" id="calGrid"></div>
+            </div>
+            <div class="cal-caption">Cada columna es una semana · rojo = Renca más calurosa que el campo · azul = más fría · clic en un día para explorarlo</div>
           </div>
           <div class="cal-records">
             <div class="rec-card rec-delta">
-              <div class="rec-kicker">Mayor Δ del año</div>
+              <div class="rec-kicker">Mayor diferencial del año</div>
               <div class="rec-val" id="recDelta">—</div>
               <div class="rec-date" id="recDeltaDate">—</div>
             </div>
@@ -146,7 +170,7 @@
       <!-- B3 · Mapa -->
       <section class="card map-card">
         <div id="miniMap" aria-label="Mapa de Renca e Isla de Maipo"></div>
-        <div class="map-badge" id="mapBadge">Δ ahora <strong id="mapBadgeVal">—</strong></div>
+        <div class="map-badge" id="mapBadge">Diferencial ahora <strong id="mapBadgeVal">—</strong></div>
       </section>
 
     </main>
@@ -154,7 +178,7 @@
     <!-- ======= FOOTER ======= -->
     <footer class="rb-footer">
       <span>MUC · GEAF UC · Pontificia Universidad Católica de Chile · FONDECYT Nº 1241886</span>
-      <span class="version">Renca v2.1 · 2026-10-20</span>
+      <span class="version">Renca v2.2 · 2026-10-21</span>
     </footer>
 
   </div>

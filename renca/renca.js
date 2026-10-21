@@ -1,9 +1,10 @@
 // ============================================================
-// MUC — Estación Renca · dashboard de una pantalla (v2)
+// MUC — Estación Renca · dashboard de una pantalla (v2.2)
 // En vivo (ThingSpeak cada 5 min) + histórico (../data/*.json del
 // GitHub Action) + día en vivo para fechas recientes.
-// Pestañas Hoy / Un día / Mes sobre un mismo panel de curvas,
-// calendario anual clickeable y mini-mapa Leaflet.
+// v2.2: charts nítidos (dimensionados al host, sin estirar SVG),
+// selector de variable (T/HR/Rad/Viento), sparklines en "Ahora",
+// curva del diferencial en la tarjeta oscura, sello "Actualizado".
 // ============================================================
 
 'use strict';
@@ -21,6 +22,13 @@ const ST = {
   }
 };
 
+const VAR_META = {
+  t: { label: 'Temperatura', unit: '°C', dec: 1, pill: v => v.toFixed(1) + '°' },
+  h: { label: 'Humedad relativa', unit: '%', dec: 0, pill: v => Math.round(v) + '%' },
+  r: { label: 'Radiación global', unit: 'W/m²', dec: 0, pill: v => Math.round(v) },
+  w: { label: 'Viento', unit: 'm/s', dec: 1, pill: v => v.toFixed(1) }
+};
+
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const MESES_CAP = MESES.map(m => m[0].toUpperCase() + m.slice(1));
 const MESES_CORTO = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
@@ -30,7 +38,7 @@ const DIAS_SEM = ['DOMINGO','LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES','S�
 const BYDAY = { renca: {}, isla: {} };
 let DATA_MIN = null, DATA_MAX = null;
 const LIVE_CACHE = {};
-const state = { tab: 'dia', day: null, month: null, year: null };
+const state = { tab: 'dia', varKey: 't', day: null, month: null, year: null };
 
 // ---------- Helpers ----------
 const $ = id => document.getElementById(id);
@@ -132,7 +140,7 @@ function getDay(key, ymd) {
   const live = LIVE_CACHE[ymd];
   let day = (live && live[key]) || BYDAY[key][ymd] || null;
   // Días en formato viejo (sin detalle horario): normalizar para que ningún
-  // código aguas abajo se caiga leyendo day.h — fue el bug que mataba la página.
+  // código aguas abajo se caiga leyendo day.h.
   if (day && !day.h) day = Object.assign({}, day, { h: emptyDay().h });
   return day;
 }
@@ -144,19 +152,38 @@ function pairedDelta(ymd) {
   for (let i = 0; i < 24; i++) {
     if (R.h.t[i] != null && I.h.t[i] != null) ds.push(R.h.t[i] - I.h.t[i]);
   }
-  return ds.length >= 6 ? mean(ds) : null;
+  if (ds.length >= 6) return mean(ds);
+  // Respaldo para días sin detalle horario en ambos lados (formato antiguo):
+  // diferencia de promedios diarios, solo si ambos tienen buena cobertura.
+  if (R.all_avg != null && I.all_avg != null && (R.all_n || 0) >= 12 && (I.all_n || 0) >= 12) {
+    return R.all_avg - I.all_avg;
+  }
+  return null;
+}
+
+// Valor diario de una variable (promedio de horas; temp usa el agregado legacy)
+function dayVal(key, ymd, k) {
+  const day = getDay(key, ymd);
+  if (!day) return null;
+  if (k === 't' && day.all_avg != null) return day.all_avg;
+  return mean(day.h[k]);
 }
 
 // ============================================================
-// Charts — línea con área degradé + pastillas máx/mín (hero)
+// Charts — dimensionados al tamaño real del host (nítidos)
 // ============================================================
 let gradSeq = 0;
-function pillSvg(x, y, text, above, color) {
-  // Pastilla anclada al punto con un marcador y conector (no queda "volando")
-  const w = Math.max(46, text.length * 8.5 + 18), h = 24;
+function hostSize(host, defW, defH) {
+  const W = host.clientWidth || defW, H = host.clientHeight || defH;
+  return { W: Math.max(W, 200), H: Math.max(H, 120) };
+}
+
+function pillSvg(x, y, text, above, color, maxY) {
+  // Pastilla anclada al punto con marcador y conector
+  const w = Math.max(44, String(text).length * 8.5 + 18), h = 24;
   let py = above ? y - 12 - h : y + 12;
-  if (py < 4) py = y + 12;            // sin espacio arriba → va abajo
-  if (py + h > 326) py = y - 12 - h;  // sin espacio abajo → va arriba
+  if (py < 4) py = y + 12;
+  if (py + h > maxY) py = y - 12 - h;
   const lineY1 = py > y ? y + 4 : y - 4;
   const lineY2 = py > y ? py : py + h;
   return `<g>
@@ -169,10 +196,9 @@ function pillSvg(x, y, text, above, color) {
 }
 
 function renderSeriesChart(host, opts) {
-  // opts: { xs: labels[], series: [{label,color,dash,values[],hero}], dec, unit, xTickIdx: [i...], xTickFmt(i), tipTitle(i) }
-  const { series, dec, unit } = opts;
-  const W = 900, H = 330;
-  const padL = 46, padR = 18, padT = 34, padB = 30;
+  const { series, dec, unit, pillFmt } = opts;
+  const { W, H } = hostSize(host, 900, 330);
+  const padL = 46, padR = 18, padT = 34, padB = 28;
   const N = opts.n;
   host.innerHTML = '';
   const allVals = series.flatMap(s => s.values.filter(v => v != null));
@@ -196,7 +222,7 @@ function renderSeriesChart(host, opts) {
     g += `<text x="${padL - 9}" y="${(y + 3.5).toFixed(1)}" text-anchor="end" font-size="11" fill="#7B8A99" font-weight="600">${Number(v.toFixed(Math.max(0, dec)))}</text>`;
   }
   for (const i of opts.xTickIdx) {
-    g += `<text x="${xs(i).toFixed(1)}" y="${H - 9}" text-anchor="middle" font-size="10.5" fill="#B0B9C2" font-weight="600">${opts.xTickFmt(i)}</text>`;
+    g += `<text x="${xs(i).toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="10.5" fill="#B0B9C2" font-weight="600">${opts.xTickFmt(i)}</text>`;
   }
 
   let defs = '', paths = '', pills = '';
@@ -221,21 +247,20 @@ function renderSeriesChart(host, opts) {
     paths += `<path d="${dPath}" fill="none" stroke="${s.color}" stroke-width="${s.hero ? 2.6 : 2}" ` +
       (s.dash ? `stroke-dasharray="${s.dash}" ` : '') + `stroke-linejoin="round" stroke-linecap="round"/>`;
     if (s.hero) {
-      // pastillas en máx y mín (estilo referencia "sales report")
       let iMax = -1, iMin = -1;
       s.values.forEach((v, i) => {
         if (v == null) return;
         if (iMax < 0 || v > s.values[iMax]) iMax = i;
         if (iMin < 0 || v < s.values[iMin]) iMin = i;
       });
-      if (iMax >= 0) pills += pillSvg(Math.min(Math.max(xs(iMax), padL + 30), W - padR - 30), ys(s.values[iMax]), fmt(s.values[iMax], dec, '°'), true, s.color);
-      if (iMin >= 0 && iMin !== iMax) pills += pillSvg(Math.min(Math.max(xs(iMin), padL + 30), W - padR - 30), ys(s.values[iMin]), fmt(s.values[iMin], dec, '°'), false, s.color);
+      const fmtP = pillFmt || (v => fmt(v, dec, ''));
+      if (iMax >= 0) pills += pillSvg(Math.min(Math.max(xs(iMax), padL + 30), W - padR - 30), ys(s.values[iMax]), fmtP(s.values[iMax]), true, s.color, H - padB);
+      if (iMin >= 0 && iMin !== iMax) pills += pillSvg(Math.min(Math.max(xs(iMin), padL + 30), W - padR - 30), ys(s.values[iMin]), fmtP(s.values[iMin]), false, s.color, H - padB);
     }
   }
 
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  svg.setAttribute('preserveAspectRatio', 'none');
   svg.innerHTML = `<defs>${defs}</defs>` + g + paths + pills +
     `<line class="hover-line" x1="0" y1="${padT}" x2="0" y2="${H - padB}" stroke="rgba(44,75,102,0.4)" stroke-width="1" stroke-dasharray="3 3" visibility="hidden"/>`;
   host.appendChild(svg);
@@ -263,22 +288,77 @@ function renderSeriesChart(host, opts) {
   svg.addEventListener('pointerleave', () => { tip.style.display = 'none'; hoverLine.setAttribute('visibility', 'hidden'); });
 }
 
-function renderHourly(host, R, I) {
-  renderSeriesChart(host, {
-    n: 24,
-    series: [
-      R && R.h ? { label: 'Renca', color: ST.renca.color, values: R.h.t, hero: true } : null,
-      I && I.h ? { label: 'Isla de Maipo', color: ST.isla.color, dash: '5 4', values: I.h.t } : null
-    ].filter(Boolean),
-    dec: 1, unit: '°C',
-    xTickIdx: [0, 6, 12, 18, 23],
-    xTickFmt: i => String(i).padStart(2, '0') + 'h',
-    tipTitle: i => String(i).padStart(2, '0') + ':00'
+// Sparkline chiquita (métricas de "Ahora")
+function renderSpark(host, values, color) {
+  if (!host) return;
+  host.innerHTML = '';
+  const pts = values.filter(v => v != null);
+  if (pts.length < 2) return;
+  const { W, H } = hostSize(host, 160, 30);
+  let yMin = Math.min(...pts), yMax = Math.max(...pts);
+  if (yMax - yMin < 1e-9) { yMax += 1; yMin -= 1; }
+  const xs = i => (i / 23) * (W - 4) + 2;
+  const ys = v => 3 + (1 - (v - yMin) / (yMax - yMin)) * (H - 8);
+  let dPath = '', open = false, lastI = -1;
+  values.forEach((v, i) => {
+    if (v == null) { open = false; return; }
+    dPath += (open ? ' L' : (dPath ? ' M' : 'M')) + xs(i).toFixed(1) + ',' + ys(v).toFixed(1);
+    open = true; lastI = i;
   });
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  let dot = '';
+  if (lastI >= 0) dot = `<circle cx="${xs(lastI).toFixed(1)}" cy="${ys(values[lastI]).toFixed(1)}" r="2.6" fill="${color}"/>`;
+  svg.innerHTML = `<path d="${dPath}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round" opacity="0.85"/>` + dot;
+  host.appendChild(svg);
+}
+
+// Curva del diferencial (tarjeta oscura) — estilo dashboard principal
+function renderDeltaMini(deltas) {
+  const host = $('deltaChart');
+  if (!host) return;
+  host.innerHTML = '';
+  if (!deltas || deltas.length < 2) return;
+  const { W, H } = hostSize(host, 356, 80);
+  const padL = 30, padR = 8, padT = 6, padB = 14;
+  const vals = deltas.map(d => d.v);
+  let yMin = Math.min(...vals, 0), yMax = Math.max(...vals, 0);
+  if (yMax - yMin < 2) { yMax += 1; yMin -= 1; }
+  const span = yMax - yMin; yMin -= span * 0.1; yMax += span * 0.1;
+  const xs = hr => padL + (hr / 23) * (W - padL - padR);
+  const ys = v => padT + (1 - (v - yMin) / (yMax - yMin)) * (H - padT - padB);
+
+  let g = '';
+  const y0 = ys(0);
+  g += `<line x1="${padL}" y1="${y0.toFixed(1)}" x2="${W - padR}" y2="${y0.toFixed(1)}" stroke="rgba(246,244,241,0.45)" stroke-width="1"/>`;
+  g += `<text x="${padL - 5}" y="${(y0 + 3.5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="rgba(246,244,241,0.7)" font-weight="700">0°</text>`;
+  for (const hr of [0, 6, 12, 18, 23]) {
+    g += `<text x="${xs(hr).toFixed(1)}" y="${H - 2}" text-anchor="middle" font-size="9" fill="rgba(246,244,241,0.5)" font-weight="600">${String(hr).padStart(2, '0')}h</text>`;
+  }
+
+  let dPath = '', first = null, last = null;
+  deltas.forEach((d, idx) => {
+    dPath += (idx === 0 ? 'M' : ' L') + xs(d.hr).toFixed(1) + ',' + ys(d.v).toFixed(1);
+    if (first == null) first = d.hr;
+    last = d;
+  });
+  const gid = 'dmg' + (++gradSeq);
+  const area = dPath + ` L${xs(last.hr).toFixed(1)},${y0.toFixed(1)} L${xs(first).toFixed(1)},${y0.toFixed(1)} Z`;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML =
+    `<defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#F8BC7E" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#F8BC7E" stop-opacity="0.02"/></linearGradient></defs>` +
+    g +
+    `<path d="${area}" fill="url(#${gid})"/>` +
+    `<path d="${dPath}" fill="none" stroke="#F8BC7E" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>` +
+    `<circle cx="${xs(last.hr).toFixed(1)}" cy="${ys(last.v).toFixed(1)}" r="3.2" fill="#fff"/>`;
+  host.appendChild(svg);
 }
 
 // ============================================================
-// Panel central — pestañas Hoy / Un día / Mes
+// Panel central — pestañas Día / Mes + selector de variable
 // ============================================================
 function statHtml(v, l, signed) {
   const cls = signed && v != null ? (v >= 0 ? 'pos' : 'neg') : '';
@@ -286,7 +366,7 @@ function statHtml(v, l, signed) {
   return `<div class="cs"><span class="cs-v ${cls}">${txt}</span><span class="cs-l">${l}</span></div>`;
 }
 
-function dayStats(ymd) {
+function dayDeltas(ymd) {
   const R = getDay('renca', ymd), I = getDay('isla', ymd);
   const deltas = [];
   if (R && I && R.h && I.h) {
@@ -294,21 +374,17 @@ function dayStats(ymd) {
       if (R.h.t[i] != null && I.h.t[i] != null) deltas.push({ hr: i, v: R.h.t[i] - I.h.t[i] });
     }
   }
-  const peak = deltas.length ? deltas.reduce((a, b) => b.v > a.v ? b : a) : null;
-  return {
-    R, I,
-    dAvg: deltas.length ? mean(deltas.map(d => d.v)) : null,
-    peak,
-    tMax: R ? (R.all_max != null ? R.all_max : maxOf(R.h.t)) : null,
-    tMin: R ? (R.all_min != null ? R.all_min : minOf(R.h.t)) : null
-  };
+  return deltas;
 }
 
 async function renderTab() {
   const today = todayYmd();
+  const k = state.varKey;
+  const meta = VAR_META[k];
   $('ctlDia').hidden = state.tab !== 'dia';
   $('ctlMes').hidden = state.tab !== 'mes';
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === state.tab));
+  document.querySelectorAll('.vchip').forEach(b => b.classList.toggle('active', b.dataset.var === k));
   const host = $('mainChart');
   const stats = $('chartStats');
 
@@ -317,58 +393,91 @@ async function renderTab() {
     const esHoy = ymd === today;
     $('diaInput').value = ymd;
     if (ymd >= (DATA_MAX || '') || esHoy) await fetchLiveDay(ymd);
-    const s = dayStats(ymd);
+    const R = getDay('renca', ymd), I = getDay('isla', ymd);
     const dow = DIAS_SEM[new Date(ymd + 'T12:00:00').getDay()];
-    $('chartTitle').textContent = esHoy
-      ? 'Hoy, hora a hora · ' + fmtDateEs(ymd, false)
-      : dow.charAt(0) + dow.slice(1).toLowerCase() + ' ' + fmtDateEs(ymd);
-    renderHourly(host, s.R, s.I);
-    stats.innerHTML =
-      statHtml(s.dAvg, esHoy ? 'Δ promedio hoy' : 'Δ promedio', true) +
-      statHtml(s.peak ? s.peak.v : null, s.peak ? 'Mayor Δ · ' + String(s.peak.hr).padStart(2, '0') + ':00' : 'Mayor Δ', true) +
-      statHtml(s.tMax != null ? fmt(s.tMax, 1, '°') : null, 'Máx Renca') +
-      statHtml(s.tMin != null ? fmt(s.tMin, 1, '°') : null, 'Mín Renca');
+    $('chartTitle').textContent = meta.label + ' · ' +
+      (esHoy ? 'hoy, ' + fmtDateEs(ymd, false) : dow.charAt(0) + dow.slice(1).toLowerCase() + ' ' + fmtDateEs(ymd));
+
+    renderSeriesChart(host, {
+      n: 24,
+      series: [
+        R ? { label: 'Renca', color: ST.renca.color, values: R.h[k], hero: true } : null,
+        I ? { label: 'Isla de Maipo', color: ST.isla.color, dash: '5 4', values: I.h[k] } : null
+      ].filter(Boolean),
+      dec: meta.dec, unit: meta.unit, pillFmt: meta.pill,
+      xTickIdx: [0, 6, 12, 18, 23],
+      xTickFmt: i => String(i).padStart(2, '0') + 'h',
+      tipTitle: i => String(i).padStart(2, '0') + ':00'
+    });
+
+    if (k === 't') {
+      const deltas = dayDeltas(ymd);
+      const peak = deltas.length ? deltas.reduce((a, b) => b.v > a.v ? b : a) : null;
+      const tMax = R ? (R.all_max != null ? R.all_max : maxOf(R.h.t)) : null;
+      const tMin = R ? (R.all_min != null ? R.all_min : minOf(R.h.t)) : null;
+      stats.innerHTML =
+        statHtml(deltas.length ? mean(deltas.map(d => d.v)) : null, 'Diferencial promedio', true) +
+        statHtml(peak ? peak.v : null, peak ? 'Mayor diferencial · ' + String(peak.hr).padStart(2, '0') + ':00' : 'Mayor diferencial', true) +
+        statHtml(tMax != null ? fmt(tMax, 1, '°') : null, 'Máx Renca') +
+        statHtml(tMin != null ? fmt(tMin, 1, '°') : null, 'Mín Renca');
+    } else {
+      const vR = R ? R.h[k] : [];
+      stats.innerHTML =
+        statHtml(mean(vR) != null ? fmt(mean(vR), meta.dec, ' ' + meta.unit) : null, 'Prom Renca') +
+        statHtml(maxOf(vR) != null ? fmt(maxOf(vR), meta.dec, '') : null, 'Máx Renca') +
+        statHtml(minOf(vR) != null ? fmt(minOf(vR), meta.dec, '') : null, 'Mín Renca') +
+        statHtml(I && mean(I.h[k]) != null ? fmt(mean(I.h[k]), meta.dec, ' ' + meta.unit) : null, 'Prom Isla');
+    }
     return;
   }
 
-  // mes
+  // ---- mes ----
   const ym = state.month;
   const [y, m] = ym.split('-').map(Number);
-  const last = new Date(y, m, 0).getDate();
+  const lastD = new Date(y, m, 0).getDate();
   const days = [];
-  for (let d = 1; d <= last; d++) {
+  for (let d = 1; d <= lastD; d++) {
     const ymd = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     if (ymd <= today) days.push(ymd);
   }
-  const avgR = days.map(d => { const x = getDay('renca', d); return x ? (x.all_avg != null ? x.all_avg : mean(x.h.t)) : null; });
-  const avgI = days.map(d => { const x = getDay('isla', d); return x ? (x.all_avg != null ? x.all_avg : mean(x.h.t)) : null; });
-  const maxR = days.map(d => { const x = getDay('renca', d); return x ? (x.all_max != null ? x.all_max : maxOf(x.h.t)) : null; });
-  const deltas = days.map(d => pairedDelta(d)).filter(v => v != null);
+  const avgR = days.map(d => dayVal('renca', d, k));
+  const avgI = days.map(d => dayVal('isla', d, k));
 
-  $('chartTitle').textContent = 'Temperatura media diaria · ' + MESES_CAP[m - 1] + ' ' + y;
+  $('chartTitle').textContent = meta.label + ' media diaria · ' + MESES_CAP[m - 1] + ' ' + y;
   renderSeriesChart(host, {
     n: days.length,
     series: [
       { label: 'Renca', color: ST.renca.color, values: avgR, hero: true },
       { label: 'Isla de Maipo', color: ST.isla.color, dash: '5 4', values: avgI }
     ],
-    dec: 1, unit: '°C',
+    dec: meta.dec, unit: meta.unit, pillFmt: meta.pill,
     xTickIdx: [0, Math.floor((days.length - 1) / 2), days.length - 1].filter((v, i, a) => a.indexOf(v) === i),
     xTickFmt: i => fmtDateShort(days[i]),
     tipTitle: i => fmtDateEs(days[i])
   });
-  const over30 = maxR.filter(v => v != null && v > 30).length;
-  stats.innerHTML =
-    statHtml(mean(avgR) != null ? fmt(mean(avgR), 1, '°') : null, 'Prom Renca') +
-    statHtml(mean(avgI) != null ? fmt(mean(avgI), 1, '°') : null, 'Prom Isla') +
-    statHtml(deltas.length ? mean(deltas) : null, 'Δ promedio', true) +
-    statHtml(over30 + (over30 === 1 ? ' día' : ' días'), 'Sobre 30°');
+
+  if (k === 't') {
+    const deltas = days.map(d => pairedDelta(d)).filter(v => v != null);
+    const maxR = days.map(d => { const x = getDay('renca', d); return x ? (x.all_max != null ? x.all_max : maxOf(x.h.t)) : null; });
+    const over30 = maxR.filter(v => v != null && v > 30).length;
+    stats.innerHTML =
+      statHtml(mean(avgR) != null ? fmt(mean(avgR), 1, '°') : null, 'Prom Renca') +
+      statHtml(mean(avgI) != null ? fmt(mean(avgI), 1, '°') : null, 'Prom Isla') +
+      statHtml(deltas.length ? mean(deltas) : null, 'Diferencial promedio', true) +
+      statHtml(over30 + (over30 === 1 ? ' día' : ' días'), 'Sobre 30°');
+  } else {
+    stats.innerHTML =
+      statHtml(mean(avgR) != null ? fmt(mean(avgR), meta.dec, ' ' + meta.unit) : null, 'Prom Renca') +
+      statHtml(maxOf(avgR) != null ? fmt(maxOf(avgR), meta.dec, '') : null, 'Máx diario Renca') +
+      statHtml(minOf(avgR) != null ? fmt(minOf(avgR), meta.dec, '') : null, 'Mín diario Renca') +
+      statHtml(mean(avgI) != null ? fmt(mean(avgI), meta.dec, ' ' + meta.unit) : null, 'Prom Isla');
+  }
 }
 
 function setTab(t) { state.tab = t; renderTab(); }
 
 // ============================================================
-// Ahora (cards + badge del mapa) — cada 5 min
+// Ahora (cards + sparklines + tarjeta oscura + mapa)
 // ============================================================
 function tsUrl(st, results) {
   return 'https://api.thingspeak.com/channels/' + st.channelId + '/feeds.json?api_key=' + st.readKey + '&results=' + results;
@@ -385,12 +494,12 @@ async function fetchNowFor(st) {
     const latest = feeds[feeds.length - 1];
     const prev = feeds.length > 1 ? feeds[feeds.length - 2] : null;
     const out = { timestamp: new Date(latest.created_at) };
-    for (const [k, col] of Object.entries(st.fields)) {
+    for (const [key, col] of Object.entries(st.fields)) {
       const v = parseFloat(latest[col]);
-      out[k] = isNaN(v) ? null : v;
+      out[key] = isNaN(v) ? null : v;
       if (prev) {
         const pv = parseFloat(prev[col]);
-        if (!isNaN(pv) && !isNaN(v)) out[k + 'Trend'] = v - pv;
+        if (!isNaN(pv) && !isNaN(v)) out[key + 'Trend'] = v - pv;
       }
     }
     return out;
@@ -417,7 +526,8 @@ async function updateNow() {
     if (rnc.t != null) $('rncTemp').textContent = Math.round(rnc.t) + '°';
     const tr = $('rncTrend');
     if (rnc.tTrend != null) {
-      tr.textContent = (rnc.tTrend >= 0 ? '↑' : '↓') + Math.abs(rnc.tTrend).toFixed(1) + '°';
+      tr.hidden = false;
+      tr.textContent = (rnc.tTrend >= 0 ? '↑' : '↓') + ' ' + Math.abs(rnc.tTrend).toFixed(1) + '° en la última lectura';
       tr.classList.toggle('up', rnc.tTrend >= 0);
       tr.classList.toggle('down', rnc.tTrend < 0);
     }
@@ -441,10 +551,10 @@ async function updateNow() {
   }
   $('mapBadgeVal').textContent = dNow != null ? fmtSigned(dNow, 1) : '—';
 
-  // rango de hoy + Δ prom/máx (en vivo)
+  // día de hoy en vivo: rango, sparklines, curva del diferencial
   const today = todayYmd();
   const live = await fetchLiveDay(today, true);
-  const R = live.renca, I = live.isla;
+  const R = live.renca;
   if (R) {
     $('rncMin').textContent = fmt(R.all_min, 0, '°');
     $('rncMax').textContent = fmt(R.all_max, 0, '°');
@@ -455,24 +565,28 @@ async function updateNow() {
       fill.style.width = Math.max(1, pct(R.all_max) - pct(R.all_min)) + '%';
       if (rnc && rnc.t != null) $('rncRangePin').style.left = pct(rnc.t) + '%';
     }
+    renderSpark($('sparkHum'), R.h.h, '#5E989E');
+    renderSpark($('sparkRad'), R.h.r, '#DCA45E');
+    renderSpark($('sparkWind'), R.h.w, '#6E9470');
   }
-  if (R && I) {
-    const deltas = [];
-    for (let i = 0; i < 24; i++) {
-      if (R.h.t[i] != null && I.h.t[i] != null) deltas.push({ hr: i, v: R.h.t[i] - I.h.t[i] });
-    }
-    if (deltas.length) {
-      $('deltaAvgHoy').textContent = fmtSigned(mean(deltas.map(d => d.v)), 1);
-      const peak = deltas.reduce((a, b) => b.v > a.v ? b : a);
-      $('deltaMaxHoy').textContent = fmtSigned(peak.v, 1);
-      $('deltaMaxHoyLbl').textContent = 'Máx · ' + String(peak.hr).padStart(2, '0') + ':00';
-    }
+  const deltas = dayDeltas(today);
+  if (deltas.length) {
+    $('deltaAvgHoy').textContent = fmtSigned(mean(deltas.map(d => d.v)), 1);
+    const peak = deltas.reduce((a, b) => b.v > a.v ? b : a);
+    $('deltaMaxHoy').textContent = fmtSigned(peak.v, 1);
+    $('deltaMaxHoyLbl').textContent = 'Máx · ' + String(peak.hr).padStart(2, '0') + ':00';
+    renderDeltaMini(deltas);
   }
-  // actualizar pins del mapa (con guardas: los markers pueden no estar montados aún)
+
   if (mapMarkers) {
     if (rnc && rnc.t != null && mapMarkers.renca) mapMarkers.renca.querySelector('.pin').textContent = Math.round(rnc.t) + '°';
     if (isl && isl.t != null && mapMarkers.isla) mapMarkers.isla.querySelector('.pin').textContent = Math.round(isl.t) + '°';
   }
+
+  // sello de actualización visible
+  const now = new Date();
+  $('lastUpdate').textContent = 'Actualizado ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
   if (state.tab === 'dia' && state.day === today) renderTab();
 }
 
@@ -522,7 +636,7 @@ function renderYear() {
           cell.classList.add('hasdata');
           const I = getDay('isla', ymd);
           const tI = I ? (I.all_avg != null ? I.all_avg : mean(I.h.t)) : null;
-          cell.dataset.tip = `<strong>${fmtDateEs(ymd)}</strong><br>Δ ${fmtSigned(delta, 1)} · Renca ${fmt(tR, 1, '°')} · Isla ${fmt(tI, 1, '°')}`;
+          cell.dataset.tip = `<strong>${fmtDateEs(ymd)}</strong><br>Diferencial ${fmtSigned(delta, 1)} · Renca ${fmt(tR, 1, '°')} · Isla ${fmt(tI, 1, '°')}`;
           cell.dataset.ymd = ymd;
         } else if (tR != null) {
           cell.style.background = 'rgba(123,138,153,0.25)';
@@ -594,7 +708,6 @@ function initMap() {
             '<div class="label">' + st.label.toUpperCase() + '</div>'
     });
     const m = L.marker([st.lat, st.lon], { icon, keyboard: false }).addTo(map);
-    // guardamos el elemento una vez montado
     setTimeout(() => { mapMarkers[key] = m.getElement(); }, 0);
   }
   map.fitBounds(L.latLngBounds([[ST.renca.lat, ST.renca.lon], [ST.isla.lat, ST.isla.lon]]).pad(0.25));
@@ -629,7 +742,6 @@ async function init() {
   await loadHistory();
   const today = todayYmd();
 
-  // estado inicial: el día de HOY (se completa en vivo desde ThingSpeak)
   state.day = today;
   state.year = Number(today.slice(0, 4));
   state.month = today.slice(0, 7);
@@ -671,14 +783,20 @@ async function init() {
   }
   anioSel.addEventListener('change', () => { state.year = Number(anioSel.value); renderYear(); });
 
-  // tabs
+  // tabs + variable
   document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+  document.querySelectorAll('.vchip').forEach(b => b.addEventListener('click', () => {
+    state.varKey = b.dataset.var;
+    renderTab();
+  }));
 
   initMap();
   renderYear();
   await renderTab();
   updateNow();
   setInterval(updateNow, 5 * 60 * 1000);
+  // al volver a la pestaña (o encender el monitor), refrescar al tiro
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) updateNow(); });
 }
 
 init();

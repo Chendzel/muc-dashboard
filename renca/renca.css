@@ -1,5 +1,5 @@
 /* ============================================================
-   MUC — Estación Renca · dashboard de una pantalla (v2)
+   MUC — Estación Renca · dashboard de una pantalla (v2.2)
    Layout fijo 1920×1080 escalado (≥1200px); reflow con scroll
    solo bajo 1200px. Paleta y tipografías aprobadas del proyecto.
    ============================================================ */
@@ -73,8 +73,9 @@ html, body {
   letter-spacing: 1.8px; text-transform: uppercase; line-height: 1.05;
 }
 .brand-text p {
-  font-size: 12px; color: var(--text-mute); letter-spacing: 1.4px;
-  text-transform: uppercase; margin-top: 4px; font-weight: 600;
+  font-family: var(--font-head);
+  font-size: 14px; color: var(--navy); letter-spacing: 2px;
+  text-transform: uppercase; margin-top: 5px; font-weight: 700;
 }
 .brand-text .fondecyt {
   font-size: 11px; color: var(--coral); letter-spacing: 1.8px;
@@ -111,6 +112,10 @@ html, body {
   font-size: 11px; color: var(--text-mute); letter-spacing: 1.6px;
   text-transform: uppercase; font-weight: 700; margin-top: 3px;
 }
+.clock .updated {
+  font-size: 10px; color: var(--text-light); letter-spacing: 1.2px;
+  text-transform: uppercase; font-weight: 700; margin-top: 2px;
+}
 
 /* ---------- Grid ---------- */
 .rb-grid {
@@ -141,19 +146,33 @@ html, body {
 .now-card { grid-column: 1; grid-row: 1; }
 .now-temp {
   font-family: var(--font-head);
-  font-size: 150px; font-weight: 700; line-height: 0.95;
+  font-size: 132px; font-weight: 700; line-height: 0.95;
   letter-spacing: 2px; font-variant-numeric: tabular-nums;
-  display: flex; align-items: baseline; gap: 14px;
-  margin: 6px 0 18px;
 }
-.now-temp .trend { font-size: 22px; font-weight: 700; color: var(--text-mute); letter-spacing: 0; }
-.now-temp .trend.up { color: var(--coral); }
-.now-temp .trend.down { color: var(--teal); }
+.trend-chip {
+  align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-head);
+  font-size: 13px; font-weight: 700; letter-spacing: 0.6px;
+  background: rgba(44,75,102,0.06);
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  margin: 8px 0 16px;
+  color: var(--text-mute);
+}
+.trend-chip.up { color: var(--coral); background: rgba(231,141,112,0.14); }
+.trend-chip.down { color: #5E989E; background: rgba(137,184,188,0.2); }
 .now-range {
-  display: flex; align-items: center; gap: 12px;
+  display: flex; align-items: center; gap: 14px;
   font-variant-numeric: tabular-nums;
 }
-.nr-num { font-family: var(--font-head); font-size: 16px; font-weight: 700; color: var(--text-mute); }
+.nr-end { display: flex; flex-direction: column; align-items: flex-start; }
+.nr-end.right { align-items: flex-end; }
+.nr-num { font-family: var(--font-head); font-size: 20px; font-weight: 700; }
+.nr-lbl {
+  font-size: 9px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--text-mute);
+}
 .nr-bar {
   position: relative; flex: 1; height: 8px; border-radius: 4px;
   background: linear-gradient(90deg, #89B8BC, #92B294, #F8BC7E, #E78D70);
@@ -166,27 +185,34 @@ html, body {
   transform: translate(-50%, -50%);
 }
 .nr-caption {
-  font-size: 10px; color: var(--text-light); letter-spacing: 1.2px; text-transform: uppercase;
-  font-weight: 700; margin-top: 8px;
+  font-size: 9.5px; color: var(--text-light); letter-spacing: 1.2px; text-transform: uppercase;
+  font-weight: 700; margin-top: 6px; text-align: center;
 }
 .now-metrics {
   margin-top: auto;
-  display: grid; grid-template-columns: 1fr 1fr; gap: 18px 14px;
-  padding-top: 18px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px 18px;
+  padding-top: 16px;
 }
-.nm { display: flex; flex-direction: column; }
+.nm { display: flex; flex-direction: column; min-width: 0; }
 .nm-v {
   font-family: var(--font-head);
-  font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1;
+  font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1;
 }
 .nm-l {
-  font-size: 10px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase;
+  font-size: 9.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
   color: var(--text-mute); margin-top: 2px;
+}
+.nm-spark { height: 30px; margin-top: 7px; }
+.nm-spark svg { display: block; width: 100%; height: 100%; }
+.nm-spark-empty {
+  display: flex; align-items: flex-end;
+  font-size: 9px; color: var(--text-light); letter-spacing: 1px;
+  text-transform: uppercase; font-weight: 700;
 }
 
 /* ---------- A2 · Panel de curvas ---------- */
 .chart-card { grid-column: 2; grid-row: 1; }
-.chart-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 8px; }
+.chart-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
 .tabs {
   display: flex; gap: 2px;
   background: rgba(44,75,102,0.06);
@@ -236,12 +262,32 @@ html, body {
 .select { cursor: pointer; }
 .select.slim { padding: 5px 9px; font-size: 12px; }
 .select:focus, .date-input:focus { outline: 2px solid var(--teal); outline-offset: 1px; }
+
 .chart-title-row {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin-bottom: 4px;
 }
-.ct-title { font-size: 13px; font-weight: 700; color: var(--text-mute); letter-spacing: 0.4px; }
-.ct-legend { display: flex; gap: 16px; font-size: 11px; font-weight: 700; color: var(--text-mute); }
+.ct-title { font-size: 13.5px; font-weight: 700; color: var(--navy); letter-spacing: 0.4px; }
+.var-chips {
+  display: flex; gap: 4px;
+}
+.vchip {
+  font-family: var(--font-head);
+  font-size: 10.5px; font-weight: 700; letter-spacing: 1.1px; text-transform: uppercase;
+  color: var(--text-mute);
+  background: none;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 7px 13px; cursor: pointer;
+  transition: all 0.15s ease;
+}
+.vchip:hover { border-color: var(--teal); color: var(--navy); }
+.vchip.active { background: var(--coral); border-color: var(--coral); color: #fff; }
+.chart-legend {
+  display: flex; gap: 16px; margin-bottom: 2px;
+  font-size: 10.5px; font-weight: 700; color: var(--text-mute);
+  letter-spacing: 0.5px;
+}
 .lg-item { display: inline-flex; align-items: center; gap: 6px; }
 .lg-swatch { width: 16px; height: 3.5px; border-radius: 2px; display: inline-block; }
 .lg-swatch.renca { background: var(--coral); }
@@ -256,7 +302,7 @@ html, body {
 .cs + .cs { border-left: 1px solid var(--line); }
 .cs-v { font-family: var(--font-head); font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .cs-v.pos { color: var(--coral); }
-.cs-v.neg { color: var(--teal); }
+.cs-v.neg { color: #5E989E; }
 .cs-l { font-size: 9.5px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: var(--text-mute); margin-top: 1px; }
 
 .chart-tip {
@@ -276,7 +322,7 @@ html, body {
 /* ---------- A3 · Δ + Isla ---------- */
 .col-right { grid-column: 3; grid-row: 1; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
 .delta-card {
-  flex: 1.35;
+  flex: 1.5;
   background: var(--navy-deep);
   color: var(--offwhite);
 }
@@ -284,30 +330,40 @@ html, body {
 .card-kicker.dark .sub { font-size: 11px; color: rgba(246,244,241,0.55); letter-spacing: 1.2px; }
 .delta-big {
   font-family: var(--font-head);
-  font-size: 96px; font-weight: 700; line-height: 1; letter-spacing: 1px;
+  font-size: 76px; font-weight: 700; line-height: 1; letter-spacing: 1px;
   font-variant-numeric: tabular-nums;
   color: var(--peach);
-  margin: 10px 0 12px;
+  margin: 4px 0 2px;
 }
 .delta-big.neg { color: var(--teal); }
-.delta-sub { font-size: 12.5px; color: rgba(246,244,241,0.75); max-width: 34ch; line-height: 1.5; }
-.delta-row { display: flex; gap: 34px; margin-top: auto; padding-top: 16px; }
+.delta-sub { font-size: 11px; color: rgba(246,244,241,0.65); letter-spacing: 1px; text-transform: uppercase; font-weight: 700; margin-bottom: 6px; }
+.delta-chart { flex: 1; min-height: 70px; }
+.delta-chart svg { display: block; width: 100%; height: 100%; }
+.delta-row { display: flex; gap: 34px; padding-top: 12px; }
 .dr { display: flex; flex-direction: column; }
-.dr-v { font-family: var(--font-head); font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dr-v { font-family: var(--font-head); font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .dr-l { font-size: 10px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: rgba(246,244,241,0.6); margin-top: 2px; }
 
-.isla-card { flex: 1; background: rgba(137,184,188,0.16); }
-.isla-row { display: flex; align-items: center; gap: 26px; margin-top: 2px; }
+.isla-card {
+  flex: 1;
+  background: linear-gradient(150deg, #8FBCC0, #B2D2D5);
+  color: var(--navy-deep);
+}
+.isla-card .card-kicker .status { color: rgba(30,53,72,0.65); }
+.isla-card .card-kicker .status.stale { color: var(--coral); }
+.isla-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 4px; flex: 1; }
 .isla-temp {
   font-family: var(--font-head);
-  font-size: 68px; font-weight: 700; line-height: 1;
+  font-size: 84px; font-weight: 700; line-height: 1;
   font-variant-numeric: tabular-nums;
 }
-.isla-metrics { display: flex; gap: 20px; }
+.isla-metrics { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+.isla-metrics .nm { flex-direction: row; align-items: baseline; gap: 8px; }
 .isla-metrics .nm-v { font-size: 24px; }
+.isla-metrics .nm-l { color: rgba(30,53,72,0.6); }
 .isla-note {
-  margin-top: auto; padding-top: 10px;
-  font-size: 10.5px; color: var(--text-mute); letter-spacing: 1.2px;
+  padding-top: 8px;
+  font-size: 10px; color: rgba(30,53,72,0.65); letter-spacing: 1.2px;
   text-transform: uppercase; font-weight: 700;
 }
 
@@ -327,11 +383,20 @@ html, body {
 }
 .cal-months {
   display: grid; grid-template-columns: repeat(12, 1fr);
-  margin: 4px 0 6px;
+  margin: 4px 0 6px 26px;
   font-family: var(--font-head);
   font-size: 10px; font-weight: 700; letter-spacing: 1.4px;
   color: var(--text-mute); text-transform: uppercase;
 }
+.cal-rows { display: flex; gap: 8px; flex: 1; min-height: 0; }
+.cal-days {
+  display: grid; grid-template-rows: repeat(7, 1fr); gap: 4px;
+  width: 18px; flex-shrink: 0;
+  font-family: var(--font-head);
+  font-size: 9px; font-weight: 700; color: var(--text-light);
+  text-transform: uppercase;
+}
+.cal-days span { display: flex; align-items: center; }
 .cal-grid {
   flex: 1;
   display: grid;
@@ -364,27 +429,27 @@ html, body {
 }
 .cal-tip strong { font-family: var(--font-head); letter-spacing: 0.5px; }
 
-/* ---------- Récords (rail dentro del calendario, estilo editorial) ---------- */
+/* ---------- Récords (rail del calendario) ---------- */
 .rec-card {
   flex: 1;
-  display: flex; flex-direction: column; justify-content: center; gap: 4px;
+  display: flex; flex-direction: column; justify-content: center; gap: 5px;
   border-radius: var(--radius-md);
-  padding: 16px 20px;
+  padding: 18px 22px;
 }
 .rec-card.rec-delta { background: linear-gradient(145deg, #E78D70, #D9763F); color: #fff; }
 .rec-card.rec-hot { background: rgba(248,188,126,0.28); }
 .rec-kicker {
   font-family: var(--font-head);
-  font-size: 12px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase;
+  font-size: 11px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase;
 }
 .rec-delta .rec-kicker { color: rgba(255,255,255,0.9); }
 .rec-hot .rec-kicker { color: var(--text-mute); }
 .rec-val {
   font-family: var(--font-head);
-  font-size: 58px; font-weight: 700; line-height: 1; letter-spacing: 0.5px;
+  font-size: 54px; font-weight: 700; line-height: 1; letter-spacing: 0.5px;
   font-variant-numeric: tabular-nums;
 }
-.rec-date { font-size: 13px; font-weight: 700; letter-spacing: 0.4px; }
+.rec-date { font-size: 12.5px; font-weight: 700; letter-spacing: 0.4px; }
 .rec-delta .rec-date { color: rgba(255,255,255,0.85); }
 .rec-hot .rec-date { color: var(--text-mute); }
 
@@ -392,15 +457,15 @@ html, body {
 .map-card { grid-column: 3; grid-row: 2; position: relative; padding: 0; overflow: hidden; }
 #miniMap { position: absolute; inset: 0; background: #EAE8E4; font-family: var(--font-body); }
 .map-badge {
-  position: absolute; top: 14px; left: 14px; z-index: 500;
+  position: absolute; top: 14px; right: 14px; z-index: 500;
   background: var(--card);
   border-radius: var(--radius-pill);
   padding: 8px 16px;
   box-shadow: var(--shadow-md);
-  font-size: 12px; font-weight: 700; letter-spacing: 0.6px;
-  color: var(--text-mute);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.6px;
+  color: var(--text-mute); text-transform: uppercase;
 }
-.map-badge strong { font-family: var(--font-head); color: var(--navy); font-size: 15px; }
+.map-badge strong { font-family: var(--font-head); color: var(--navy); font-size: 15px; margin-left: 4px; }
 .lf-station { pointer-events: auto; }
 .lf-station .pin {
   width: 30px; height: 30px; border-radius: 50%;
@@ -444,15 +509,24 @@ html, body {
   .clock .time { font-size: 28px; }
   .rb-grid { display: flex; flex-direction: column; gap: 12px; }
   .card { min-height: unset; }
-  .now-temp { font-size: 92px; }
-  .now-metrics { padding-top: 14px; }
-  .chart-host { min-height: 230px; }
-  .delta-big { font-size: 64px; }
-  .col-right, .col-records { display: flex; flex-direction: column; gap: 12px; }
-  .cal-grid { min-height: 90px; }
+  .now-temp { font-size: 88px; }
+  .chart-head { flex-wrap: wrap; }
+  .chart-title-row { flex-wrap: wrap; }
+  .chart-host { min-height: 240px; }
+  .chart-stats { flex-wrap: wrap; }
+  .cs { min-width: 45%; padding: 6px 0; }
+  .delta-big { font-size: 56px; }
+  .delta-chart { min-height: 90px; }
+  .isla-temp { font-size: 60px; }
+  .col-right { display: flex; flex-direction: column; gap: 12px; }
+  .cal-body { flex-direction: column; }
+  .cal-records { width: 100%; flex-direction: row; }
+  .rec-card { padding: 14px 16px; }
+  .rec-val { font-size: 36px; }
+  .cal-main { overflow-x: auto; }
   .cal-months { min-width: 640px; }
-  .cal-grid { min-width: 640px; }
-  .cal-card { overflow-x: auto; }
+  .cal-rows { min-width: 640px; }
+  .cal-grid { min-height: 110px; }
   .map-card { height: 320px; }
   .rb-footer { flex-wrap: wrap; margin-top: 14px; }
 }
