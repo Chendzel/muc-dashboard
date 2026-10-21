@@ -195,14 +195,26 @@ html, body {
 }
 .tab {
   font-family: var(--font-head);
-  font-size: 12px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase;
+  font-size: 13.5px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase;
   color: var(--text-mute);
   background: none; border: none; cursor: pointer;
-  padding: 8px 18px; border-radius: var(--radius-pill);
+  padding: 11px 26px; border-radius: var(--radius-pill);
   transition: color 0.15s ease, background 0.15s ease;
 }
 .tab:hover { color: var(--navy); }
-.tab.active { background: var(--card); color: var(--navy); box-shadow: var(--shadow-sm); }
+.tab.active { background: var(--navy); color: var(--offwhite); box-shadow: var(--shadow-sm); }
+.btn-hoy {
+  font-family: var(--font-head);
+  font-size: 11.5px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase;
+  color: var(--navy);
+  background: var(--card);
+  border: 1.5px solid var(--navy);
+  border-radius: var(--radius-pill);
+  padding: 8px 16px; cursor: pointer;
+  margin-right: 4px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.btn-hoy:hover { background: var(--navy); color: var(--offwhite); }
 .chart-controls { display: flex; align-items: center; gap: 8px; }
 .date-nav { display: flex; align-items: center; gap: 6px; }
 .date-arrow {
@@ -237,10 +249,11 @@ html, body {
 .chart-host { position: relative; flex: 1; min-height: 0; }
 .chart-host svg { display: block; width: 100%; height: 100%; }
 .chart-stats {
-  display: flex; gap: 34px;
+  display: flex;
   padding-top: 12px; border-top: 1px solid var(--line); margin-top: 8px;
 }
-.cs { display: flex; flex-direction: column; }
+.cs { display: flex; flex-direction: column; flex: 1; align-items: center; text-align: center; }
+.cs + .cs { border-left: 1px solid var(--line); }
 .cs-v { font-family: var(--font-head); font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .cs-v.pos { color: var(--coral); }
 .cs-v.neg { color: var(--teal); }

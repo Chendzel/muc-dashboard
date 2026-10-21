@@ -30,7 +30,7 @@ const DIAS_SEM = ['DOMINGO','LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES','S�
 const BYDAY = { renca: {}, isla: {} };
 let DATA_MIN = null, DATA_MAX = null;
 const LIVE_CACHE = {};
-const state = { tab: 'hoy', day: null, month: null, year: null };
+const state = { tab: 'dia', day: null, month: null, year: null };
 
 // ---------- Helpers ----------
 const $ = id => document.getElementById(id);
@@ -130,8 +130,11 @@ async function fetchLiveDay(ymd, force = false) {
 
 function getDay(key, ymd) {
   const live = LIVE_CACHE[ymd];
-  if (live && live[key]) return live[key];
-  return BYDAY[key][ymd] || null;
+  let day = (live && live[key]) || BYDAY[key][ymd] || null;
+  // Días en formato viejo (sin detalle horario): normalizar para que ningún
+  // código aguas abajo se caiga leyendo day.h — fue el bug que mataba la página.
+  if (day && !day.h) day = Object.assign({}, day, { h: emptyDay().h });
+  return day;
 }
 
 function pairedDelta(ymd) {
@@ -148,10 +151,18 @@ function pairedDelta(ymd) {
 // Charts — línea con área degradé + pastillas máx/mín (hero)
 // ============================================================
 let gradSeq = 0;
-function pillSvg(x, y, text, above) {
+function pillSvg(x, y, text, above, color) {
+  // Pastilla anclada al punto con un marcador y conector (no queda "volando")
   const w = Math.max(46, text.length * 8.5 + 18), h = 24;
-  const py = above ? y - 14 - h : y + 14;
-  return `<g><rect x="${(x - w / 2).toFixed(1)}" y="${py.toFixed(1)}" width="${w.toFixed(0)}" height="${h}" rx="${h / 2}"
+  let py = above ? y - 12 - h : y + 12;
+  if (py < 4) py = y + 12;            // sin espacio arriba → va abajo
+  if (py + h > 326) py = y - 12 - h;  // sin espacio abajo → va arriba
+  const lineY1 = py > y ? y + 4 : y - 4;
+  const lineY2 = py > y ? py : py + h;
+  return `<g>
+    <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="${color}" stroke="#fff" stroke-width="2"/>
+    <line x1="${x.toFixed(1)}" y1="${lineY1.toFixed(1)}" x2="${x.toFixed(1)}" y2="${lineY2.toFixed(1)}" stroke="rgba(44,75,102,0.25)" stroke-width="1"/>
+    <rect x="${(x - w / 2).toFixed(1)}" y="${py.toFixed(1)}" width="${w.toFixed(0)}" height="${h}" rx="${h / 2}"
       fill="#fff" stroke="rgba(44,75,102,0.12)" style="filter:drop-shadow(0 2px 4px rgba(44,75,102,0.18))"/>
     <text x="${x.toFixed(1)}" y="${(py + h / 2 + 4).toFixed(1)}" text-anchor="middle"
       font-size="12.5" font-weight="700" fill="#2C4B66" font-family="Helvetica Neue, sans-serif">${text}</text></g>`;
@@ -217,8 +228,8 @@ function renderSeriesChart(host, opts) {
         if (iMax < 0 || v > s.values[iMax]) iMax = i;
         if (iMin < 0 || v < s.values[iMin]) iMin = i;
       });
-      if (iMax >= 0) pills += pillSvg(Math.min(Math.max(xs(iMax), padL + 30), W - padR - 30), ys(s.values[iMax]), fmt(s.values[iMax], dec, '°'), true);
-      if (iMin >= 0 && iMin !== iMax) pills += pillSvg(Math.min(Math.max(xs(iMin), padL + 30), W - padR - 30), ys(s.values[iMin]), fmt(s.values[iMin], dec, '°'), false);
+      if (iMax >= 0) pills += pillSvg(Math.min(Math.max(xs(iMax), padL + 30), W - padR - 30), ys(s.values[iMax]), fmt(s.values[iMax], dec, '°'), true, s.color);
+      if (iMin >= 0 && iMin !== iMax) pills += pillSvg(Math.min(Math.max(xs(iMin), padL + 30), W - padR - 30), ys(s.values[iMin]), fmt(s.values[iMin], dec, '°'), false, s.color);
     }
   }
 
@@ -301,29 +312,19 @@ async function renderTab() {
   const host = $('mainChart');
   const stats = $('chartStats');
 
-  if (state.tab === 'hoy') {
-    await fetchLiveDay(today);
-    const s = dayStats(today);
-    $('chartTitle').textContent = 'Hoy, hora a hora · ' + fmtDateEs(today, false);
-    renderHourly(host, s.R, s.I);
-    stats.innerHTML =
-      statHtml(s.dAvg, 'Δ promedio hoy', true) +
-      statHtml(s.peak ? s.peak.v : null, s.peak ? 'Mayor Δ · ' + String(s.peak.hr).padStart(2, '0') + ':00' : 'Mayor Δ', true) +
-      statHtml(s.tMax != null ? fmt(s.tMax, 1, '°') : null, 'Máx Renca') +
-      statHtml(s.tMin != null ? fmt(s.tMin, 1, '°') : null, 'Mín Renca');
-    return;
-  }
-
   if (state.tab === 'dia') {
     const ymd = state.day;
+    const esHoy = ymd === today;
     $('diaInput').value = ymd;
-    if (ymd >= (DATA_MAX || '') || ymd === today) await fetchLiveDay(ymd);
+    if (ymd >= (DATA_MAX || '') || esHoy) await fetchLiveDay(ymd);
     const s = dayStats(ymd);
     const dow = DIAS_SEM[new Date(ymd + 'T12:00:00').getDay()];
-    $('chartTitle').textContent = dow.charAt(0) + dow.slice(1).toLowerCase() + ' ' + fmtDateEs(ymd);
+    $('chartTitle').textContent = esHoy
+      ? 'Hoy, hora a hora · ' + fmtDateEs(ymd, false)
+      : dow.charAt(0) + dow.slice(1).toLowerCase() + ' ' + fmtDateEs(ymd);
     renderHourly(host, s.R, s.I);
     stats.innerHTML =
-      statHtml(s.dAvg, 'Δ promedio', true) +
+      statHtml(s.dAvg, esHoy ? 'Δ promedio hoy' : 'Δ promedio', true) +
       statHtml(s.peak ? s.peak.v : null, s.peak ? 'Mayor Δ · ' + String(s.peak.hr).padStart(2, '0') + ':00' : 'Mayor Δ', true) +
       statHtml(s.tMax != null ? fmt(s.tMax, 1, '°') : null, 'Máx Renca') +
       statHtml(s.tMin != null ? fmt(s.tMin, 1, '°') : null, 'Mín Renca');
@@ -467,12 +468,12 @@ async function updateNow() {
       $('deltaMaxHoyLbl').textContent = 'Máx · ' + String(peak.hr).padStart(2, '0') + ':00';
     }
   }
-  // actualizar pins del mapa
+  // actualizar pins del mapa (con guardas: los markers pueden no estar montados aún)
   if (mapMarkers) {
-    if (rnc && rnc.t != null) mapMarkers.renca.querySelector('.pin').textContent = Math.round(rnc.t) + '°';
-    if (isl && isl.t != null) mapMarkers.isla.querySelector('.pin').textContent = Math.round(isl.t) + '°';
+    if (rnc && rnc.t != null && mapMarkers.renca) mapMarkers.renca.querySelector('.pin').textContent = Math.round(rnc.t) + '°';
+    if (isl && isl.t != null && mapMarkers.isla) mapMarkers.isla.querySelector('.pin').textContent = Math.round(isl.t) + '°';
   }
-  if (state.tab === 'hoy') renderTab();
+  if (state.tab === 'dia' && state.day === today) renderTab();
 }
 
 // ============================================================
@@ -628,8 +629,8 @@ async function init() {
   await loadHistory();
   const today = todayYmd();
 
-  // estado inicial
-  state.day = DATA_MAX && DATA_MAX < today ? DATA_MAX : shiftYmd(today, -1);
+  // estado inicial: el día de HOY (se completa en vivo desde ThingSpeak)
+  state.day = today;
   state.year = Number(today.slice(0, 4));
   state.month = today.slice(0, 7);
 
@@ -637,6 +638,7 @@ async function init() {
   const dia = $('diaInput');
   dia.min = DATA_MIN || ''; dia.max = today;
   dia.addEventListener('change', () => { if (dia.value) { state.day = dia.value; renderTab(); } });
+  $('btnHoy').addEventListener('click', () => { state.day = today; renderTab(); });
   $('diaPrev').addEventListener('click', () => { state.day = shiftYmd(state.day, -1); renderTab(); });
   $('diaNext').addEventListener('click', () => {
     const next = shiftYmd(state.day, 1);
