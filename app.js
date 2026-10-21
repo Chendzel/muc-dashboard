@@ -40,7 +40,7 @@ function deltaColor(delta) {
   if (delta < -3) return '#3E647A';   // deep blue
   if (delta < -1.5) return '#7DA6BB'; // mid blue
   if (delta < -0.5) return '#B4D4E0'; // pale blue
-  if (delta < 0.5) return '#F4F4F4';  // neutral
+  if (delta < 0.5) return '#D9E6D5';  // neutral = sage suave (distinto del gris "sin datos")
   if (delta < 2) return '#F8E0CE';
   if (delta < 3.5) return '#F8BC7E';
   if (delta < 4.5) return '#E78D70';
@@ -407,11 +407,11 @@ function regenerateAllHeatmaps() {
           const ymd = dateToYMD(date);
           const v = dayValueFor(activeStation, ymd, viewKey);
           if (v == null) {
-            cell.style.background = GRAY_NODATA;
+            cell.classList.add('nodata');
           } else if (viewKey === 'anual') {
             const isla = YEAR_DATA.isla && YEAR_DATA.isla[ymd];
             const islaV = isla && isla.all_avg;
-            if (islaV == null) cell.style.background = GRAY_NODATA;
+            if (islaV == null) cell.classList.add('nodata');
             else cell.style.background = deltaColor(v - islaV);
           } else {
             cell.style.background = tempColor(v, 0, 32);
@@ -477,10 +477,12 @@ function setActiveStation(key) {
     const data = d.seasons && d.seasons[sk];
     const stats = row.querySelectorAll('.season-stat .v');
     const upcomingMsg = row.querySelector('.season-stats.upcoming');
-    if (data && Array.isArray(data) && stats.length >= 3) {
-      // Replace upcoming-message if it exists with actual stats
-      if (upcomingMsg) upcomingMsg.outerHTML = '<div class="season-stats"><div class="season-stat"><span class="v">' + data[0] + '</span><span class="l">PROM</span></div><div class="season-stat"><span class="v">' + data[1] + '<span class="u">d</span></span><span class="l">&gt;28°</span></div><div class="season-stat"><span class="v">' + data[2] + '</span><span class="l">ΔU-R</span></div></div>';
-      else {
+    if (data && Array.isArray(data)) {
+      // v1.41: una fila "Próximo" no tiene .season-stat todavía — el reemplazo
+      // del mensaje debe evaluarse ANTES de exigir celdas existentes.
+      if (upcomingMsg) {
+        upcomingMsg.outerHTML = '<div class="season-stats"><div class="season-stat"><span class="v">' + data[0] + '</span><span class="l">PROM</span></div><div class="season-stat"><span class="v">' + data[1] + '<span class="u">d</span></span><span class="l">&gt;28°</span></div><div class="season-stat"><span class="v">' + data[2] + '</span><span class="l">ΔU-R</span></div></div>';
+      } else if (stats.length >= 3) {
         stats[0].textContent = data[0];
         stats[1].innerHTML = data[1] + '<span class="u">d</span>';
         stats[2].textContent = data[2];
@@ -514,6 +516,16 @@ const SEASON_MONTHS = {
   primavera: [8, 9, 10]
 };
 
+// v1.41: los JSONs traen TODO el histórico (2025+2026) — el resumen es del año
+// en curso, así que cada estación del año filtra también por AÑO (diciembre
+// pertenece al verano del año siguiente).
+function inCurrentSeasonYear(d, months) {
+  const m = d.getMonth(), y = d.getFullYear(), cur = today.getFullYear();
+  if (!months.includes(m)) return false;
+  if (m === 11) return y === cur - 1;
+  return y === cur;
+}
+
 function computeSeasonStatsForStation(stationKey) {
   // Returns { verano: [prom, days>28, deltaUR], otono: [...], invierno: [...], primavera: [...] }
   // Each value is a string '—' if no data.
@@ -530,8 +542,8 @@ function computeSeasonStatsForStation(stationKey) {
 
     function collectFor(byDay) {
       Object.entries(byDay).forEach(([ymd, day]) => {
-        const d = new Date(ymd);
-        if (!months.includes(d.getMonth())) return;
+        const d = new Date(ymd + 'T12:00:00');
+        if (!inCurrentSeasonYear(d, months)) return;
         if (day.all_avg == null) return;
         temps.push(day.all_avg);
         // Días con max > 28° (preferir all_max si está disponible, fallback a T_avg como proxy de "tarde caliente")
@@ -547,8 +559,8 @@ function computeSeasonStatsForStation(stationKey) {
       const allDays = new Set();
       urbans.forEach(u => YEAR_DATA[u] && Object.keys(YEAR_DATA[u]).forEach(d => allDays.add(d)));
       for (const ymd of allDays) {
-        const d = new Date(ymd);
-        if (!months.includes(d.getMonth())) continue;
+        const d = new Date(ymd + 'T12:00:00');
+        if (!inCurrentSeasonYear(d, months)) continue;
         const dayTemps = urbans.map(u => YEAR_DATA[u] && YEAR_DATA[u][ymd] && YEAR_DATA[u][ymd].all_avg).filter(t => t != null);
         if (dayTemps.length === 0) continue;
         const avg = dayTemps.reduce((a,c)=>a+c,0) / dayTemps.length;
@@ -690,28 +702,34 @@ function renderDeltaChart() {
   const islaHist = LATEST_HISTORY['isla-maipo'];
   if (!islaHist || islaHist.error) { g.innerHTML = ''; return; }
 
-  // Build series of hourly deltas (station|avg - isla) up to 24 points
+  // Build series of hourly deltas (station|avg - isla), alineada a HORA DE RELOJ:
+  // los buckets de hourlyAvg van de "hace 24 h" (0) a "ahora" (23); acá los
+  // mapeamos a las horas reales de HOY (00h = medianoche … nowH = ahora),
+  // para que el eje 00/06/12/18 corresponda a la hora verdadera.
+  const nowH = new Date().getHours();
   let series = [];
   if (stationKey === '__avg') {
     const urbanIds = ['providencia', 'stgo-centro', 'renca', 'cerrillos'];
-    for (let i = 0; i < 24; i++) {
+    for (let h = 0; h <= nowH; h++) {
+      const i = 23 - (nowH - h);
       const il = islaHist.hourlyAvg[i] && islaHist.hourlyAvg[i].temp;
       if (il == null) continue;
       const urbanTemps = urbanIds.map(id => {
-        const h = LATEST_HISTORY[id];
-        return h && h.hourlyAvg && h.hourlyAvg[i] && h.hourlyAvg[i].temp;
+        const hh = LATEST_HISTORY[id];
+        return hh && hh.hourlyAvg && hh.hourlyAvg[i] && hh.hourlyAvg[i].temp;
       }).filter(t => t != null);
       if (urbanTemps.length === 0) continue;
       const avg = urbanTemps.reduce((a,c)=>a+c,0) / urbanTemps.length;
-      series.push({ i: i, delta: avg - il });
+      series.push({ i: h, delta: avg - il });
     }
   } else if (stationId) {
     const sHist = LATEST_HISTORY[stationId];
     if (sHist && !sHist.error && sHist.hourlyAvg) {
-      for (let i = 0; i < 24; i++) {
+      for (let h = 0; h <= nowH; h++) {
+        const i = 23 - (nowH - h);
         const s = sHist.hourlyAvg[i] && sHist.hourlyAvg[i].temp;
         const il = islaHist.hourlyAvg[i] && islaHist.hourlyAvg[i].temp;
-        if (s != null && il != null) series.push({ i: i, delta: s - il });
+        if (s != null && il != null) series.push({ i: h, delta: s - il });
       }
     }
   }
@@ -1026,7 +1044,7 @@ function renderStationCard(cardClass, data) {
 
   // Wind speed
   if (data.windSpeed != null) {
-    updateMetricValue(card, 'wind', data.windSpeed.toFixed(1) + '<span class="u">m/s</span>');
+    updateMetricValue(card, 'wind', (data.windSpeed * 3.6).toFixed(1) + '<span class="u">km/h</span>');
   }
 
   // Wind direction
@@ -1706,6 +1724,10 @@ async function fetchAllYearHistory() {
   // Re-render with real data
   regenerateAllHeatmaps();
   renderUptimeBars();
+  // v1.41: calcular las estadísticas estacionales REALES desde YEAR_DATA
+  // (la función existía pero nunca se llamaba — el resumen quedaba en placeholder)
+  applyComputedSeasons();
+  setActiveStation(activeStation);
 }
 
 function dayValueFor(stationKey, ymd, viewKey) {

@@ -730,7 +730,7 @@
   }
   .hm-legend-bar {
     width: 90px; height: 6px; border-radius: 3px;
-    background: linear-gradient(90deg, #3E647A 0%, #B4D4E0 22%, #F4F4F4 50%, #F8BC7E 76%, #D26852 100%);
+    background: linear-gradient(90deg, #3E647A 0%, #B4D4E0 22%, #D9E6D5 50%, #F8BC7E 76%, #D26852 100%);
   }
   .heatmap-grid { display: grid; grid-template-columns: 24px 1fr; gap: 4px; flex: 1; min-height: 0; }
   .hm-days {
@@ -753,6 +753,10 @@
     flex: 1; min-height: 0;
   }
   .hm-cells .cell { border-radius: 2px; min-height: 0; }
+  /* v1.41: sin datos = rayado diagonal (el verde sage queda para Δ ≈ 0) */
+  .cell.nodata {
+    background: repeating-linear-gradient(45deg, rgba(123,138,153,0.35) 0 2px, rgba(123,138,153,0.08) 2px 5px);
+  }
 
   .stats-card { padding: 12px 16px; display: flex; flex-direction: column; gap: 0; }
   .season-list {
