@@ -223,11 +223,15 @@ function feedsUrl(station, start, end, average) {
 }
 
 async function fetchRange(station, start, end, average) {
-  // Month-sized chunks so average=60 stays well under the 8000-result cap.
+  // OJO: el tope de 8000 resultados de ThingSpeak aplica sobre los registros
+  // CRUDOS aunque se pida average — una estación que reporta cada ~2 min genera
+  // ~700/día, así que bloques de 5 días (~3500) quedan siempre bajo el tope.
+  // (Con bloques de 30 días la API devolvía solo los últimos ~11 días de cada
+  // bloque y dejaba huecos periódicos — bug detectado oct-2026.)
   const feeds = [];
   let cur = new Date(start);
   while (cur < end) {
-    const next = new Date(Math.min(end.getTime(), cur.getTime() + 30 * 24 * 3600 * 1000));
+    const next = new Date(Math.min(end.getTime(), cur.getTime() + 5 * 24 * 3600 * 1000));
     try {
       const json = await fetchAPI(feedsUrl(station, cur, next, average));
       feeds.push(...(json.feeds || []));
@@ -275,18 +279,25 @@ async function updateStation(station) {
     data.byDay = {};
     for (const ymd of Object.keys(buckets).sort()) data.byDay[ymd] = finalizeDay(buckets[ymd]);
   } else {
-    // Daily refresh: last 36h with 10-min averages (covers yesterday fully when run early morning).
-    const windowStart = new Date(now.getTime() - 36 * 3600 * 1000);
+    // Daily refresh: últimos 7 días con promedios de 10 min. La ventana ancha
+    // da margen si el Action falla unos días — CRÍTICO porque ThingSpeak ya
+    // NO retiene el histórico completo (se resetea por memoria): estos JSONs
+    // son el único archivo permanente.
+    const windowStart = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
     const feeds = await fetchRange(station, windowStart, now, 10);
     const buckets = {};
     accumulate(buckets, feeds, station.fields);
-    const winYmd = santiagoYmdHour(windowStart).ymd;
+    // Regla de oro: nunca reemplazar un día guardado por una versión con MENOS
+    // cobertura horaria (p.ej. si ThingSpeak ya purgó parte de ese día).
+    const hourCount = d => (d && d.h && d.h.t) ? d.h.t.filter(v => v != null).length : 0;
+    let written = 0, kept = 0;
     for (const ymd of Object.keys(buckets)) {
-      // Override only days the window covers from midnight; the leading partial day
-      // would otherwise clobber a previously complete day with its tail hours.
-      if (ymd > winYmd || !data.byDay[ymd]) data.byDay[ymd] = finalizeDay(buckets[ymd]);
+      const nd = finalizeDay(buckets[ymd]);
+      const old = data.byDay[ymd];
+      if (!old || hourCount(nd) >= hourCount(old)) { data.byDay[ymd] = nd; written++; }
+      else kept++;
     }
-    console.log(`  API daily: ${feeds.length} points (window ≥ ${winYmd})`);
+    console.log(`  API daily: ${feeds.length} points → ${written} días escritos, ${kept} conservados (tenían más datos)`);
   }
 
   data.lastUpdate = now.toISOString();
