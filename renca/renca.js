@@ -157,6 +157,38 @@ function getDay(key, ymd) {
   return day;
 }
 
+// Escalas FIJAS por variable (extremos anuales de ambas estaciones), para que
+// todos los días/meses se grafiquen en el mismo eje Y y sean comparables.
+const FIXED = { dia: {}, mes: {} };
+function computeScales() {
+  for (const k of ['t', 'h', 'r', 'w']) {
+    const all = [], daily = [];
+    for (const key of ['renca', 'isla']) {
+      for (const day of Object.values(BYDAY[key])) {
+        if (!day.h || !day.h[k]) continue;
+        const vals = day.h[k].filter(v => v != null);
+        if (!vals.length) continue;
+        all.push(...vals);
+        const m = mean(vals);
+        if (m != null) daily.push(m);
+      }
+    }
+    if (k === 'h') { FIXED.dia[k] = [0, 100]; FIXED.mes[k] = [0, 100]; continue; }
+    if (!all.length) { FIXED.dia[k] = null; FIXED.mes[k] = null; continue; }
+    all.sort((a, b) => a - b);
+    daily.sort((a, b) => a - b);
+    const q = (arr, p) => arr[Math.min(arr.length - 1, Math.floor(arr.length * p))];
+    if (k === 'r' || k === 'w') {
+      // percentil 99 para que picos puntuales del sensor no aplasten las curvas
+      FIXED.dia[k] = [0, Math.ceil(q(all, 0.99) * 1.05)];
+      FIXED.mes[k] = [0, Math.ceil(q(daily, 0.99) * 1.1)];
+      continue;
+    }
+    FIXED.dia[k] = [Math.floor(q(all, 0.002) - 1), Math.ceil(q(all, 0.998) + 1)];
+    FIXED.mes[k] = [Math.floor(daily[0] - 1), Math.ceil(daily[daily.length - 1] + 1)];
+  }
+}
+
 function pairedDelta(ymd) {
   const R = getDay('renca', ymd), I = getDay('isla', ymd);
   if (!R || !I || !R.h || !I.h) return null;
@@ -218,9 +250,15 @@ function renderSeriesChart(host, opts) {
     host.innerHTML = '<div style="padding:60px;text-align:center;color:#B0B9C2;font-size:14px;">Sin datos para esta selección</div>';
     return;
   }
-  let yMin = Math.min(...allVals), yMax = Math.max(...allVals);
-  if (yMax - yMin < 1e-9) { yMax += 1; yMin -= 1; }
-  const span = yMax - yMin; yMin -= span * 0.14; yMax += span * 0.14;
+  let yMin, yMax;
+  if (opts.yFix) {
+    // Escala fija (comparable entre días/meses)
+    yMin = opts.yFix[0]; yMax = opts.yFix[1];
+  } else {
+    yMin = Math.min(...allVals); yMax = Math.max(...allVals);
+    if (yMax - yMin < 1e-9) { yMax += 1; yMin -= 1; }
+    const span = yMax - yMin; yMin -= span * 0.14; yMax += span * 0.14;
+  }
   const xs = i => N === 1 ? (padL + (W - padL - padR) / 2) : padL + (i / (N - 1)) * (W - padL - padR);
   const ys = v => padT + (1 - (v - yMin) / (yMax - yMin)) * (H - padT - padB);
 
@@ -533,6 +571,7 @@ async function renderTab() {
         cmpSeries
       ].filter(Boolean),
       dec: meta.dec, unit: meta.unit, pillFmt: meta.pill,
+      yFix: FIXED.dia[k],
       xTickIdx: [0, 6, 12, 18, 23],
       xTickFmt: i => String(i).padStart(2, '0') + 'h',
       tipTitle: i => String(i).padStart(2, '0') + ':00'
@@ -594,6 +633,7 @@ async function renderTab() {
       cmpSeriesMes
     ].filter(Boolean),
     dec: meta.dec, unit: meta.unit, pillFmt: meta.pill,
+    yFix: FIXED.mes[k],
     xTickIdx: [0, Math.floor((days.length - 1) / 2), days.length - 1].filter((v, i, a) => a.indexOf(v) === i),
     xTickFmt: i => fmtDateShort(days[i]),
     tipTitle: i => fmtDateEs(days[i])
@@ -657,6 +697,51 @@ function setStatus(el, data) {
   return stale;
 }
 
+// Clasificador de condición (misma heurística del dashboard principal):
+// radiación observada vs teórica de cielo despejado + humedad + temperatura.
+const CONDITION_ICONS = {
+  'soleado':  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4" fill="currentColor" fill-opacity="0.25"/><line x1="12" y1="3" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="21"/><line x1="3" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="21" y2="12"/><line x1="5.5" y1="5.5" x2="7" y2="7"/><line x1="17" y1="17" x2="18.5" y2="18.5"/><line x1="5.5" y1="18.5" x2="7" y2="17"/><line x1="17" y1="7" x2="18.5" y2="5.5"/></svg>',
+  'parcial':  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="16" cy="7" r="3.5" fill="currentColor" fill-opacity="0.6"/><line x1="16" y1="1" x2="16" y2="3"/><line x1="22" y1="7" x2="23" y2="7"/><line x1="20" y1="3" x2="21" y2="2"/><line x1="20" y1="11" x2="21" y2="12"/><path d="M3,19 a3.5,3.5 0 0 1 0,-7 a4.5,4.5 0 0 1 9,0 a3.5,3.5 0 0 1 0,7 Z" fill="currentColor" fill-opacity="0.3"/></svg>',
+  'nublado':  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6,18 a4,4 0 0 1 0,-8 a5,5 0 0 1 10,0 a4,4 0 0 1 0,8 Z" fill="currentColor" fill-opacity="0.18"/></svg>',
+  'niebla':   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="9" x2="21" y2="9"/><line x1="5" y1="13" x2="19" y2="13"/><line x1="3" y1="17" x2="17" y2="17"/></svg>',
+  'ola-calor':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="10" r="2.5" fill="currentColor" fill-opacity="0.4"/><line x1="9" y1="3" x2="9" y2="5"/><line x1="3" y1="10" x2="5" y2="10"/><line x1="13" y1="10" x2="15" y2="10"/><path d="M19 6 v10 a2,2 0 0 1 -4,0 v-10 Z" fill="currentColor" fill-opacity="0.6"/></svg>',
+  'noche':    '<svg viewBox="0 0 24 24" fill="none"><path d="M16 4 A9 9 0 1 0 19 17 A7.5 7.5 0 0 1 16 4 Z" fill="currentColor" fill-opacity="0.5" stroke="currentColor" stroke-width="1.2"/></svg>'
+};
+const CONDITION_LABELS = {
+  'soleado': 'Soleado', 'parcial': 'Parcial', 'nublado': 'Nublado',
+  'niebla': 'Niebla', 'ola-calor': 'Ola de calor', 'noche': 'Noche'
+};
+
+function classifyCondition(temp, humidity, rad, hour) {
+  if (temp == null) return null;
+  const isNight = hour >= 19 || hour < 6;
+  if (isNight) {
+    if (humidity != null && humidity >= 88) return 'niebla';
+    if (humidity != null && humidity >= 75) return 'nublado';
+    return 'noche';
+  }
+  if (temp >= 30) return 'ola-calor';
+  if (humidity != null && humidity >= 88 && rad != null && rad < 50 && hour >= 7 && hour <= 18) return 'niebla';
+  let expectedRad = 0;
+  if (hour >= 6 && hour <= 18) expectedRad = 1000 * Math.sin((hour - 6) / 12 * Math.PI);
+  if (expectedRad < 50) return null;
+  if (rad == null) return null;
+  const ratio = rad / expectedRad;
+  if (ratio >= 0.7) return 'soleado';
+  if (ratio >= 0.35) return 'parcial';
+  return 'nublado';
+}
+
+function updateCondition(rnc) {
+  const chip = $('condChip');
+  if (!rnc || rnc.t == null) { chip.hidden = true; return; }
+  const cond = classifyCondition(rnc.t, rnc.h, rnc.r, new Date().getHours());
+  if (!cond) { chip.hidden = true; return; }
+  chip.hidden = false;
+  $('condIcon').innerHTML = CONDITION_ICONS[cond] || '';
+  $('condLbl').textContent = CONDITION_LABELS[cond] || '';
+}
+
 let mapMarkers = null;
 async function updateNow() {
   const [rnc, isl] = await Promise.all([fetchNowFor(ST.renca), fetchNowFor(ST.isla)]);
@@ -672,6 +757,7 @@ async function updateNow() {
     $('rncWind').textContent = rnc.w != null ? rnc.w.toFixed(1) : '—';
     $('rncDir').textContent = rnc.d != null ? degToCompassEs(rnc.d) + ' · ' + Math.round(rnc.d) + '°' : '—';
   }
+  updateCondition(rnc);
   if (isl) {
     if (isl.t != null) $('islTemp').textContent = Math.round(isl.t) + '°';
     $('islHum').textContent = isl.h != null ? Math.round(isl.h) : '—';
@@ -829,7 +915,7 @@ function renderYear() {
   $('recDelta').textContent = stats.peakD != null ? fmtSigned(stats.peakD, 1) : '—';
   $('recDeltaDate').textContent = stats.peakDay ? fmtDateEs(stats.peakDay, false) + ' · promedio del día' : '—';
   $('recHot').textContent = stats.maxT != null ? fmt(stats.maxT, 1, '°') : '—';
-  $('recHotDate').textContent = stats.maxTDay ? fmtDateEs(stats.maxTDay, false) + ' · máxima en Renca' : '—';
+  $('recHotDate').textContent = stats.maxTDay ? fmtDateEs(stats.maxTDay, false) + ' · máx en Renca' : '—';
 }
 
 // ============================================================
@@ -904,6 +990,7 @@ async function init() {
   setInterval(tickClock, 30 * 1000);
 
   await loadHistory();
+  computeScales();
   const today = todayYmd();
 
   state.day = today;

@@ -9,7 +9,7 @@
 <meta property="og:description" content="Isla de calor urbana en Renca, en vivo y día a día: temperatura, humedad, radiación y viento comparados con la referencia rural de Isla de Maipo.">
 <meta property="og:type" content="website">
 <link rel="stylesheet" href="../libs/leaflet/leaflet.css">
-<link rel="stylesheet" href="renca.css?v=2.4">
+<link rel="stylesheet" href="renca.css?v=2.5">
 </head>
 <body>
 
@@ -46,7 +46,13 @@
       <!-- A1 · Ahora -->
       <section class="card now-card">
         <div class="card-kicker"><span>Ahora · Renca</span><span class="status" id="rncStatus">—</span></div>
-        <div class="now-temp"><span id="rncTemp">—</span></div>
+        <div class="now-temp-row">
+          <div class="now-temp"><span id="rncTemp">—</span></div>
+          <div class="cond-chip" id="condChip" hidden>
+            <div class="cond-icon" id="condIcon"></div>
+            <span class="cond-lbl" id="condLbl">—</span>
+          </div>
+        </div>
         <div class="trend-chip" id="rncTrend" hidden></div>
         <div class="now-range">
           <div class="nr-end"><span class="nr-num" id="rncMin">—</span><span class="nr-lbl">Mín hoy</span></div>
@@ -190,13 +196,13 @@
     <!-- ======= FOOTER ======= -->
     <footer class="rb-footer">
       <span>MUC · GEAF UC · Pontificia Universidad Católica de Chile · FONDECYT Nº 1241886</span>
-      <span class="version">Renca v2.4 · 2026-10-21</span>
+      <span class="version">Renca v2.5 · 2026-10-21</span>
     </footer>
 
   </div>
 </div>
 
 <script src="../libs/leaflet/leaflet.js"></script>
-<script src="renca.js?v=2.4"></script>
+<script src="renca.js?v=2.5"></script>
 </body>
 </html>

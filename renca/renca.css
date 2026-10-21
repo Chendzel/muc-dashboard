@@ -144,10 +144,25 @@ html, body {
 
 /* ---------- A1 · Ahora ---------- */
 .now-card { grid-column: 1; grid-row: 1; }
+.now-temp-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .now-temp {
   font-family: var(--font-head);
   font-size: 132px; font-weight: 700; line-height: 0.95;
   letter-spacing: 2px; font-variant-numeric: tabular-nums;
+}
+.cond-chip { display: flex; flex-direction: column; align-items: center; gap: 6px; padding-right: 6px; }
+.cond-icon {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  background: rgba(248,188,126,0.22);
+  display: grid; place-items: center;
+  color: var(--coral);
+}
+.cond-icon svg { width: 38px; height: 38px; }
+.cond-lbl {
+  font-family: var(--font-head);
+  font-size: 10px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase;
+  color: var(--text-mute);
 }
 .trend-chip {
   align-self: flex-start;
@@ -398,10 +413,11 @@ html, body {
 .cal-card { grid-column: 1 / 3; grid-row: 2; }
 .cal-body { display: flex; gap: 22px; flex: 1; min-height: 0; }
 .cal-main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-.cal-records { width: 250px; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; }
+.cal-records { width: 250px; min-height: 0; display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
 .rec-year {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 0 4px;
+  flex-shrink: 0;
 }
 .rec-year-lbl {
   font-family: var(--font-head);
@@ -468,25 +484,27 @@ html, body {
 
 /* ---------- Récords (rail del calendario) ---------- */
 .rec-card {
-  flex: 1;
-  display: flex; flex-direction: column; justify-content: center; gap: 5px;
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column; justify-content: center; gap: 4px;
   border-radius: var(--radius-md);
-  padding: 18px 22px;
+  padding: 12px 18px;
+  overflow: hidden;
 }
 .rec-card.rec-delta { background: linear-gradient(145deg, #E78D70, #D9763F); color: #fff; }
 .rec-card.rec-hot { background: rgba(248,188,126,0.28); }
 .rec-kicker {
   font-family: var(--font-head);
-  font-size: 11px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase;
+  font-size: 10px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase;
+  white-space: nowrap;
 }
 .rec-delta .rec-kicker { color: rgba(255,255,255,0.9); }
 .rec-hot .rec-kicker { color: var(--text-mute); }
 .rec-val {
   font-family: var(--font-head);
-  font-size: 54px; font-weight: 700; line-height: 1; letter-spacing: 0.5px;
+  font-size: 42px; font-weight: 700; line-height: 1; letter-spacing: 0.5px;
   font-variant-numeric: tabular-nums;
 }
-.rec-date { font-size: 12.5px; font-weight: 700; letter-spacing: 0.4px; }
+.rec-date { font-size: 11.5px; font-weight: 700; letter-spacing: 0.3px; white-space: nowrap; }
 .rec-delta .rec-date { color: rgba(255,255,255,0.85); }
 .rec-hot .rec-date { color: var(--text-mute); }
 
