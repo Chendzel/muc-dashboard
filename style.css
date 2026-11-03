@@ -853,6 +853,11 @@
     background-image: url('Logos e imagenes/Logo_Anid.svg');
     width: 82px; height: 26px;
   }
+  /* Logo vertical (proporción 0.88) — más alto que el resto para que "CIGIDEN" se lea */
+  .footer-logo.cigiden {
+    background-image: url('Logos e imagenes/Logo_CIGIDEN.svg');
+    width: 34px; height: 38px;
+  }
 
   .toggle-bar {
     position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
@@ -1526,6 +1531,7 @@
     .footer-logo.uc { width: 70px; height: 22px; }
     .footer-logo.mase { width: 66px; height: 16px; }
     .footer-logo.anid-text { width: 58px; height: 20px; }
+    .footer-logo.cigiden { width: 24px; height: 27px; }
   }
 
   /* Mobile landscape muy chico (<480px) — más compacto aún */
